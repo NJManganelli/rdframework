@@ -3,8 +3,9 @@
 #
 # Distributed under the 3-clause BSD license, see accompanying file LICENSE
 # or https://github.com/NJManganelli/rdframework for details.
-
+import site
 from setuptools import setup
+site.ENABLE_USER_SITE = True
 
 setup()
 
