@@ -14,143 +14,111 @@ def lepton_channel_categorization(
 ) -> Any:
     """Define event-level masks categorizing events into different lepton channels (ee_OS, emu_SS, mumu_OS,
     maybe 1 and 3-lepton channels, or (subsets) of the 1-lepton channels with an additional nonisolated lepton"""
-    # doing everything in python for now
     # might be better to separate channel categorization from triggering, but lots of overlap calculations:
     # define the different channels, e.g. ee (OS), emu (SS), etc.
 
-    # Get our iso lepton multiplicities
-    n_iso_e = ak.num(iso_electrons, axis=-1)
-    n_iso_mu = ak.num(iso_muons, axis=-1)
+    if not iso_muons.endswith("_"):
+        iso_muons += "_"
+    if not iso_electrons.endswith("_"):
+        iso_electrons += "_"
+    if not noniso_muons.endswith("_"):
+        noniso_muons += "_"
+    if not noniso_electrons.endswith("_"):
+        noniso_electrons += "_"
+        
+    # hold tag for our iso lepton multiplicities
+    n_iso_e = f"n{iso_electrons[:-1]}"
+    n_iso_mu = f"n{iso_muons[:-1]}"
+    n_noniso_e = f"n{noniso_electrons[:-1]}" if noniso_electrons else "0"
+    n_noniso_mu = f"n{noniso_muons[:-1]}" if noniso_muons else "0"
+    
     # Get our lepton charge sums for OSDL/SSDL categorization
-    sum_charge_iso_e = ak.sum(iso_electrons.charge, axis=-1)
-    sum_charge_iso_mu = ak.sum(iso_muons.charge, axis=-1)
-    sum_charge_iso_lep = sum_charge_iso_e + sum_charge_iso_mu
+    events = events.Define("sum_charge_iso_e", f"Sum({iso_electrons}charge)")
+    events = events.Define("sum_charge_iso_mu", f"Sum({iso_muons}charge)")
+    events = events.Define("sum_charge_iso_lep", "sum_charge_iso_e + sum_charge_iso_mu")
 
     # Get our noniso lepton multiplicities and charges, if applicable
     if noniso_muons:
-        n_noniso_mu = ak.num(noniso_muons, axis=-1)
-        sum_charge_noniso_mu = ak.sum(noniso_muons.charge, axis=-1)
+        events = events.Define("sum_charge_noniso_mu", f"Sum({noniso_muons}charge)")
     else:
-        n_noniso_mu = -ak.ones_like(n_iso_mu)
-        sum_charge_noniso_mu = ak.zeros_like(n_iso_mu)
+        events = events.Define("sum_charge_noniso_mu", "return 0;")
 
     if noniso_electrons:
-        n_noniso_e = ak.num(noniso_electrons, axis=-1)
-        sum_charge_noniso_e = ak.sum(noniso_electrons.charge, axis=-1)
+        events = events.Define("sum_charge_noniso_e", f"Sum({noniso_electrons}charge)")
     else:
-        n_noniso_e = -ak.ones_like(n_iso_e)
-        sum_charge_noniso_e = ak.zeros_like(n_iso_e)
-    sum_charge_noniso_lep = sum_charge_noniso_e + sum_charge_noniso_mu
+        events = events.Define("sum_charge_noniso_e", "return 0;")
+    events = events.Define("sum_charge_noniso_lep", "sum_charge_noniso_e + sum_charge_noniso_mu")
 
-    sum_charge_all = sum_charge_iso_lep + sum_charge_noniso_lep
-
-    # This could use the PackedSelection to efficiently store and do combinations of cuts
-    # https://github.com/CoffeaTeam/coffea/blob/master/coffea/analysis_tools.py
-
-    channels = PackedSelection(dtype="uint64")
+    events = events.Define("sum_charge_all", "sum_charge_iso_lep + sum_charge_noniso_lep")
+    
+    
     # Single lepton
-    channels.add("iso_1e0mu", (n_iso_e == 1) & (n_iso_mu == 0), fill_value=False)
-    channels.add("iso_0e1mu", (n_iso_e == 0) & (n_iso_mu == 1), fill_value=False)
+    events = events.Define("iso_1e0mu", f"({n_iso_e} == 1) && ({n_iso_mu} == 0)")
+    events = events.Define("iso_0e1mu", f"({n_iso_e} == 0) && ({n_iso_mu} == 1)")
 
     # Dilepton, OS + SS not differentiated yet
-    channels.add("iso_2e0mu", (n_iso_e == 2) & (n_iso_mu == 0), fill_value=False)
-    channels.add("iso_1e1mu", (n_iso_e == 1) & (n_iso_mu == 1), fill_value=False)
-    channels.add("iso_0e2mu", (n_iso_e == 0) & (n_iso_mu == 2), fill_value=False)
+    events = events.Define("iso_2e0mu", f"({n_iso_e} == 2) && ({n_iso_mu} == 0)")
+    events = events.Define("iso_1e1mu", f"({n_iso_e} == 1) && ({n_iso_mu} == 1)")
+    events = events.Define("iso_0e2mu", f"({n_iso_e} == 0) && ({n_iso_mu} == 2)")
 
     # Trilepton
-    channels.add("iso_3e0mu", (n_iso_e == 3) & (n_iso_mu == 0), fill_value=False)
-    channels.add("iso_2e1mu", (n_iso_e == 2) & (n_iso_mu == 1), fill_value=False)
-    channels.add("iso_1e2mu", (n_iso_e == 1) & (n_iso_mu == 2), fill_value=False)
-    channels.add("iso_0e3mu", (n_iso_e == 0) & (n_iso_mu == 3), fill_value=False)
+    events = events.Define("iso_3e0mu", f"({n_iso_e} == 3) && ({n_iso_mu} == 0)")
+    events = events.Define("iso_2e1mu", f"({n_iso_e} == 2) && ({n_iso_mu} == 1)")
+    events = events.Define("iso_1e2mu", f"({n_iso_e} == 1) && ({n_iso_mu} == 2)")
+    events = events.Define("iso_0e3mu", f"({n_iso_e} == 0) && ({n_iso_mu} == 3)")
 
     # Quadralepton
-    channels.add("iso_4e0mu", (n_iso_e == 4) & (n_iso_mu == 0), fill_value=False)
-    channels.add("iso_3e1mu", (n_iso_e == 3) & (n_iso_mu == 1), fill_value=False)
-    channels.add("iso_2e2mu", (n_iso_e == 2) & (n_iso_mu == 2), fill_value=False)
-    channels.add("iso_1e3mu", (n_iso_e == 1) & (n_iso_mu == 3), fill_value=False)
-    channels.add("iso_0e4mu", (n_iso_e == 0) & (n_iso_mu == 4), fill_value=False)
+    events = events.Define("iso_4e0mu", f"({n_iso_e} == 4) && ({n_iso_mu} == 0)")
+    events = events.Define("iso_3e1mu", f"({n_iso_e} == 3) && ({n_iso_mu} == 1)")
+    events = events.Define("iso_2e2mu", f"({n_iso_e} == 2) && ({n_iso_mu} == 2)")
+    events = events.Define("iso_1e3mu", f"({n_iso_e} == 1) && ({n_iso_mu} == 3)")
+    events = events.Define("iso_0e4mu", f"({n_iso_e} == 0) && ({n_iso_mu} == 4)")
 
     # 1 isolated, 1 non-isolated leptons... for QCD background estimations... orthogonal to each other but not above channels
-    channels.add(
+    events = events.Define(
         "iso_1e0mu_noniso_1e0mu",
-        (n_iso_e == 1) & (n_iso_mu == 0) & (n_noniso_e == 1) & (n_noniso_mu == 0),
-        fill_value=False,
+        f"({n_iso_e} == 1) && ({n_iso_mu} == 0) && ({n_noniso_e} == 1) && ({n_noniso_mu} == 0)"
     )
-    channels.add(
+    events = events.Define(
         "iso_1e0mu_noniso_0e1mu",
-        (n_iso_e == 1) & (n_iso_mu == 0) & (n_noniso_e == 0) & (n_noniso_mu == 1),
-        fill_value=False,
+        f"({n_iso_e} == 1) && ({n_iso_mu} == 0) && ({n_noniso_e} == 0) && ({n_noniso_mu} == 1)"
     )
-    channels.add(
+    events = events.Define(
         "iso_0e1mu_noniso_1e0mu",
-        (n_iso_e == 0) & (n_iso_mu == 1) & (n_noniso_e == 1) & (n_noniso_mu == 0),
-        fill_value=False,
+        f"({n_iso_e} == 0) && ({n_iso_mu} == 1) && ({n_noniso_e} == 1) && ({n_noniso_mu} == 0)"
     )
-    channels.add(
+    events = events.Define(
         "iso_0e1mu_noniso_0e1mu",
-        (n_iso_e == 0) & (n_iso_mu == 1) & (n_noniso_e == 0) & (n_noniso_mu == 1),
-        fill_value=False,
+        f"({n_iso_e} == 0) && ({n_iso_mu} == 1) && ({n_noniso_e} == 0) && ({n_noniso_mu} == 1)"
     )
 
     # Add sum of isolated and nonisolated charges
-    channels.add("iso_sumc0", (sum_charge_iso_lep == 0), fill_value=False)
-    channels.add("noniso_sumc0", (sum_charge_noniso_lep == 0), fill_value=False)
-    channels.add("sumc0", (sum_charge_all == 0), fill_value=False)
+    events = events.Define("iso_sumc0", "(sum_charge_iso_lep == 0)")
+    events = events.Define("noniso_sumc0", "(sum_charge_noniso_lep == 0)")
+    events = events.Define("sumc0", "(sum_charge_all == 0)")
 
     # Add the main channels of interest... this set should be orthogonal with each other
-    channels.add("e", channels.require(iso_1e0mu=True))
-    channels.add("mu", channels.require(iso_0e1mu=True))
-    channels.add("ee_OS", channels.require(iso_2e0mu=True, iso_sumc0=True))
-    channels.add("emu_OS", channels.require(iso_1e1mu=True, iso_sumc0=True))
-    channels.add("mumu_OS", channels.require(iso_0e2mu=True, iso_sumc0=True))
-    channels.add("ee_SS", channels.require(iso_2e0mu=True, iso_sumc0=False))
-    channels.add("emu_SS", channels.require(iso_1e1mu=True, iso_sumc0=False))
-    channels.add("mumu_SS", channels.require(iso_0e2mu=True, iso_sumc0=False))
+    events = events.Define("channel_e", "(iso_1e0mu == true)")
+    events = events.Define("channel_mu", "(iso_0e1mu == true)")
+    events = events.Define("channel_ee_OS", "(iso_2e0mu == true && iso_sumc0 == true)")
+    events = events.Define("channel_emu_OS", "(iso_1e1mu == true && iso_sumc0 == true)")
+    events = events.Define("channel_mumu_OS", "(iso_0e2mu == true && iso_sumc0 == true)")
+    events = events.Define("channel_ee_SS", "(iso_2e0mu == true && iso_sumc0 == false)")
+    events = events.Define("channel_emu_SS", "(iso_1e1mu == true && iso_sumc0 == false)")
+    events = events.Define("channel_mumu_SS", "(iso_0e2mu == true && iso_sumc0 == false)")
 
     # Add the inverted iso channels of interest, SUBSET OF 'e' and 'mu' channels!
     # isolated-lepton_nonisolated-lepton_dilepton-charge format
-    channels.add(
-        "e_nie_OS",
-        channels.require(iso_1e0mu_noniso_1e0mu=True, sumc0=True),
-        fill_value=False,
-    )
-    channels.add(
-        "e_nie_SS",
-        channels.require(iso_1e0mu_noniso_1e0mu=True, sumc0=False),
-        fill_value=False,
-    )
-    channels.add(
-        "e_nim_OS",
-        channels.require(iso_1e0mu_noniso_0e1mu=True, sumc0=True),
-        fill_value=False,
-    )
-    channels.add(
-        "e_nim_SS",
-        channels.require(iso_1e0mu_noniso_0e1mu=True, sumc0=False),
-        fill_value=False,
-    )
-    channels.add(
-        "mu_nie_OS",
-        channels.require(iso_0e1mu_noniso_1e0mu=True, sumc0=True),
-        fill_value=False,
-    )
-    channels.add(
-        "mu_nie_SS",
-        channels.require(iso_0e1mu_noniso_1e0mu=True, sumc0=False),
-        fill_value=False,
-    )
-    channels.add(
-        "mu_nim_OS",
-        channels.require(iso_0e1mu_noniso_0e1mu=True, sumc0=True),
-        fill_value=False,
-    )
-    channels.add(
-        "mu_nim_SS",
-        channels.require(iso_0e1mu_noniso_0e1mu=True, sumc0=False),
-        fill_value=False,
-    )
+    events = events.Define("channel_e_nie_OS", "(iso_1e0mu_noniso_1e0mu == true, sumc0 == true)")
+    events = events.Define("channel_e_nie_SS", "(iso_1e0mu_noniso_1e0mu == true, sumc0 == false)")
+    events = events.Define("channel_e_nim_OS", "(iso_1e0mu_noniso_0e1mu == true, sumc0 == true)")
+    events = events.Define("channel_e_nim_SS", "(iso_1e0mu_noniso_0e1mu == true, sumc0 == false)")
+    events = events.Define("channel_mu_nie_OS", "(iso_0e1mu_noniso_1e0mu == true, sumc0 == true)")
+    events = events.Define("channel_mu_nie_SS", "(iso_0e1mu_noniso_1e0mu == true, sumc0 == false)")
+    events = events.Define("channel_mu_nim_OS", "(iso_0e1mu_noniso_0e1mu == true, sumc0 == true)")
+    events = events.Define("channel_mu_nim_SS", "(iso_0e1mu_noniso_0e1mu == true, sumc0 == false)")
 
-    return channels
+    return events
 
 
 def dilepton_trigger_selection(
