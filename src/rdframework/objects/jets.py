@@ -70,7 +70,8 @@ def btag_jets(
 
 def select_jets(
     events: Any,
-    collection_name: str,
+    input_collection: str
+    output_collection: str,
     columns: list[str] | str | None,
     isolated_leptons: list[str] | None,
     clean_algo_or_dR: float | str,
@@ -99,6 +100,14 @@ def select_jets(
     # The latter might be extremely costly and inefficient if you have to use e.g. all ~20 JEC variations!
     # Once the Vary function is around, that should be called on the pt, then the variations should work downstream for 
     # anything using jet pt
+    if not input_collection.endswith("_"):
+        input_collection += "_"
+    if not output_collection.endswith("_"):
+        n_name = output_collection
+        output_collection += "_"
+    else:
+        n_name = output_collection[:-1]
+        
     if fix_inverted_pu_id_bits:
         raise NotImplementedError(
             "Patching of the inverted Jet PU ID bits in 2016 UL not implemented"
@@ -113,7 +122,7 @@ def select_jets(
     else:
         raise ValueError(f"Unsupported jet_id value{jet_id}")
 
-    mask = f"auto jmask = abs(Jet_eta) <= {jet_max_eta} && (Jet_jetId >= {jet_min_id})"
+    mask = f"auto jmask = abs({input_collection}eta) <= {jet_max_eta} && ({input_collection}jetId >= {jet_min_id})"
 
     if jet_pu_id:
         if jet_pu_id.lower() in ["loose", "l"]:
@@ -125,24 +134,26 @@ def select_jets(
             # jet_mask[syst_name] = jet_mask[syst_name] & ( (getattr(jets, "pt_" + syst_variation) > 50.0) | jets.puId == 7)
         else:
             raise ValueError("Invalid Jet PU Id selected")
-        mask = mask + f" && ((Jet_pt > 50.0) || Jet_puId >= {jet_min_pu_id})"
+        mask = mask + f" && (({input_collection}pt > 50.0) || {input_collection}puId >= {jet_min_pu_id})"
 
     # allow for 0 to many isolated lepton collections to be passed in...
     if isolated_leptons:
         for lep_collection in isolated_leptons:  
             if isinstance(clean_algo_or_dR, str): #PFMatching
+                # FIXME: add this to logging with a check against DefinedColumnNames
+                # WARNING: PFMatching against a reduced collection will produce incorrect cross-cleaning
                 mask = mask + (
                     f"""; for(int i=0; i < {lep_collection}_jetIdx.size(); ++i){{"
-                            jmask = jmask && (Jet_idx != {lep_collection}_jetIdx.at(i));}}"""
+                            jmask = jmask && ({input_collection}idx != {lep_collection}_jetIdx.at(i));}}"""
                 )
             elif isinstance(clean_algo_or_dR, float): #DeltaR
                 mask = mask + (
                     f"""; for(int i=0; i < {lep_collection}_jetIdx.size(); ++i){{"
                             RVec_f dr;
                             for(int j=0; j < jmask.size(); ++j){{
-                              dr.push_back(DeltaR(Jet_eta.at(j), 
+                              dr.push_back(DeltaR({input_collection}eta.at(j), 
                                                   {lep_collection}_eta.at(i),
-                                                  Jet_phi.at(j),
+                                                  {input_collection}phi.at(j),
                                                   {lep_collection}_phi.at(i)
                                                  )
                                           );
@@ -152,9 +163,10 @@ def select_jets(
                           }} //end loop over lep_collection""")
     mask = mask + "; return jmask;"
     print(mask)
-    avail_columns = [str(col) for col in events.GetColumnNames() if str(col).startswith("Jet_")]
-    events = events.Define("Jet_idx", f"Combinations({avail_columns[0]}, 1).at(0);")
-    events = events.Define("jetmask", mask) 
+    avail_columns = [str(col) for col in events.GetColumnNames() if str(col).startswith(input_collection)]
+    if not f"{input_collection}idx" in avail_columns:
+        events = events.Define(f"{input_collection}idx", f"Combinations({avail_columns[0]}, 1).at(0);")
+    events = events.Define("{output_collection}jetmask", mask) 
     if btagging_configuration is not None:
         btagger = str(btagging_configuration.get("btagger"))
         WP = str(btagging_configuration.get("WP"))
@@ -171,26 +183,23 @@ def select_jets(
             return_btag_dict=False,
         )
     if isinstance(columns, list):
-        sel_columns = [col[4:] for col in columns if col.startswith("Jet_")] 
+        sel_columns = [col[len(input_collection):] for col in columns if col.startswith(f"{input_collection}")] 
     elif isinstance(columns, str):
         raise NotImplementedError("regexp not currently supported")
     else:
-        sel_columns = [col[4:] for col in avail_columns]
+        sel_columns = [col[len(input_collection):] for col in avail_columns] + [f"{input_collection}idx"]
     
     if sort_column:
         if sort_reverse:
-            events = events.Define("jettake", f"return Reverse(Argsort(Jet_{sort_column}[jetmask]));")
+            events = events.Define("jettake", 
+                                   f"return Reverse(Argsort({input_collection}{sort_column}[{output_collection}jetmask]));")
         else:
-            events = events.Define("jettake", f"return Argsort(Jet_{sort_column}[jetmask]);")
+            events = events.Define("jettake", f"return Argsort({input_collection}{sort_column}[{output_collection}jetmask]);")
     else:
-        events = events.Define("jettake", "return Jet_idx[jetmask];")
-    if not collection_name.endswith("_"):
-        n_name = collection_name
-        collection_name = collection_name + "_"
-    else:
-        n_name = collection_name[:-1]
-    events = events.Define(f"n{n_name}", "return Sum(jetmask);")
+        events = events.Define(f"{output_collection}jettake", "return {input_collection}idx[{output_collection}jetmask];")
+    events = events.Define(f"n{output_collection[:-1]}", "return Sum({output_collection}jetmask);")
     for scol in sel_columns:
         #This can be replaced by .Select(Jet_*, ...) when that feature is supported
-        events = events.Define(collection_name + scol, f"return Take(Jet_{scol}[jetmask], jettake);")
+        events = events.Define(output_collection + scol, 
+                               f"return Take({input_collection}{scol}[{output_collection}jetmask], {output_collection}jettake);")
     return events
