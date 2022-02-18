@@ -3,7 +3,9 @@ from __future__ import annotations
 from typing import Any
 
 
-def vidUnpackedWP(events: Any, return_columns: bool = True, input_collection: str = "Electron_") -> Any:
+def vidUnpackedWP(
+    events: Any, return_columns: bool = True, input_collection: str = "Electron_"
+) -> Any:
     """Return dataframe with columns of the cuts in the electron cutBasedID,
     e.g. Electron_GsfEleEInverseMinusPInverseCut will be 0 (fail), 1, 2, 3, or 4 (tight)"""
     columns = events.GetColumnNames()
@@ -28,7 +30,10 @@ def vidUnpackedWP(events: Any, return_columns: bool = True, input_collection: st
         # Replace with Redefine when it can be used to 'define if undefined, overwrite if defined'
         if f"{input_collection}{name}" in columns:
             continue
-        events = events.Define(f"{input_collection}{name}", f"return ({input_collection}vidNestedWPBitmap >> {shift}) & 0b111;")
+        events = events.Define(
+            f"{input_collection}{name}",
+            f"return ({input_collection}vidNestedWPBitmap >> {shift}) & 0b111;",
+        )
     return events, ret_cols
 
 
@@ -77,7 +82,7 @@ def select_electrons_cutBased(
             raise ValueError(f"{electron_id} is not a supported cutBased electron ID")
     else:
         e_id = electron_id
-        
+
     # We apply the EGamma recommendations
     mask = f"""auto emask = (
             (abs({input_collection}eta) < 1.4442)
@@ -91,7 +96,9 @@ def select_electrons_cutBased(
         ) && ({input_collection}pt >= {min_pt})"""
     if isinstance(invert_cuts, list) and len(invert_cuts) > 0:
         # add unpacked columns to dataset
-        events, vid_cuts = vidUnpackedWP(events, return_columns = True, input_collection = input_collection)
+        events, vid_cuts = vidUnpackedWP(
+            events, return_columns=True, input_collection=input_collection
+        )
         for name in vid_cuts:
             if name not in invert_cuts:
                 # Need the cut to have passed at the minimum level
@@ -100,40 +107,62 @@ def select_electrons_cutBased(
                 # Unfortunately, not all are evaluated for all levels, which makes things confusing
                 mask += f"\n && !({input_collection}{name} >= {e_id})"
     else:
-        mask +=  f"\n && ({input_collection}cutBased >= {e_id})"
+        mask += f"\n && ({input_collection}cutBased >= {e_id})"
     mask += "; return emask;"
-    print(mask)
-    
-    avail_columns = [str(col) for col in events.GetColumnNames() if str(col).startswith(input_collection)]
-    if not f"{input_collection}idx" in avail_columns:
-        events = events.Define(f"{input_collection}idx", f"Combinations({avail_columns[0]}, 1).at(0);")
-    events = events.Define(f"{output_collection}elmask", mask) 
-    
-    #Now define all our columns... what about sorting!?
+
+    avail_columns = [
+        str(col)
+        for col in events.GetColumnNames()
+        if str(col).startswith(input_collection)
+    ]
+    if f"{input_collection}idx" not in avail_columns:
+        events = events.Define(
+            f"{input_collection}idx", f"Combinations({avail_columns[0]}, 1).at(0);"
+        )
+    events = events.Define(f"{output_collection}elmask", mask)
+
+    # Now define all our columns... what about sorting!?
     if isinstance(columns, list):
-        sel_columns = [col[len(input_collection):] for col in columns if col.startswith(input_collection)] 
+        sel_columns = [
+            col[len(input_collection) :]
+            for col in columns
+            if col.startswith(input_collection)
+        ]
     elif isinstance(columns, str):
         raise NotImplementedError("regexp not currently supported")
     else:
-        sel_columns = [col[len(input_collection):] for col in avail_columns] + [f"{input_collection}idx"]
-    
+        sel_columns = [col[len(input_collection) :] for col in avail_columns] + [
+            f"{input_collection}idx"
+        ]
+
     if sort_column:
         # Build a take vector that must be applied to the SLICED variables
         # e.g. Take(Electron_eta[ele_mask], sort_indices_for_slice)
         if sort_reverse:
-            events = events.Define(f"{output_collection}eltake", 
-                                   f"return Reverse(Argsort({input_collection}{sort_column}[{output_collection}elmask]));")
+            events = events.Define(
+                f"{output_collection}eltake",
+                f"return Reverse(Argsort({input_collection}{sort_column}[{output_collection}elmask]));",
+            )
         else:
-            events = events.Define(f"{output_collection}eltake", 
-                                   f"return Argsort({input_collection}{sort_column}[{output_collection}elmask]);")
+            events = events.Define(
+                f"{output_collection}eltake",
+                f"return Argsort({input_collection}{sort_column}[{output_collection}elmask]);",
+            )
     else:
-        events = events.Define(f"{output_collection}eltake", f"return {input_collection}idx[{output_collection}elmask];")
-        
-    events = events.Define(f"n{output_collection[:-1]}", f"return Sum({output_collection}elmask);")
+        events = events.Define(
+            f"{output_collection}eltake",
+            f"return {input_collection}idx[{output_collection}elmask];",
+        )
+
+    events = events.Define(
+        f"n{output_collection[:-1]}", f"return Sum({output_collection}elmask);"
+    )
     for scol in sel_columns:
-        #This can be replaced by .Select(Jet_*, ...) when that feature is supported
-        events = events.Define(output_collection + scol, 
-                               f"return Take({input_collection}{scol}[{output_collection}elmask], {output_collection}eltake);")
+        # This can be replaced by .Select(Jet_*, ...) when that feature is supported
+        events = events.Define(
+            output_collection + scol,
+            f"return Take({input_collection}{scol}[{output_collection}elmask], {output_collection}eltake);",
+        )
     return events
 
 
@@ -155,11 +184,8 @@ def select_muons_cutBased(
     if not input_collection.endswith("_"):
         input_collection += "_"
     if not output_collection.endswith("_"):
-        n_name = output_collection
         output_collection += "_"
-    else:
-        n_name = output_collection[:-1]
-        
+
     if isinstance(muon_iso, str):
         # 1=PFIsoVeryLoose, 2=PFIsoLoose, 3=PFIsoMedium, 4=PFIsoTight, 5=PFIsoVeryTight, 6=PFIsoVeryVeryTight
         if muon_iso.lower() in ["fail", "pfisoveryveryloose"]:
@@ -188,7 +214,7 @@ def select_muons_cutBased(
         && (abs({input_collection}ip3d) < {max_ip3d})
         && (abs({input_collection}dz) < {max_dz})
     )"""
-    if invert_iso == True:
+    if invert_iso:
         mask += f"\n && ({input_collection}pfIsoId < {m_iso})"
     else:
         mask += f"\n && ({input_collection}pfIsoId >= {m_iso})"
@@ -206,34 +232,57 @@ def select_muons_cutBased(
         mask += f"\n && ({input_collection}tightId)"
 
     mask += "; return mmask;"
-    print(mask)
-    avail_columns = [str(col) for col in events.GetColumnNames() if str(col).startswith(input_collection)]
-    if not f"{input_collection}idx" in avail_columns:
-        events = events.Define(f"{input_collection}idx", f"Combinations({avail_columns[0]}, 1).at(0);")
-    events = events.Define(f"{output_collection}mumask", mask) 
-    
-    #Now define all our columns... what about sorting!?
+
+    avail_columns = [
+        str(col)
+        for col in events.GetColumnNames()
+        if str(col).startswith(input_collection)
+    ]
+    if f"{input_collection}idx" not in avail_columns:
+        events = events.Define(
+            f"{input_collection}idx", f"Combinations({avail_columns[0]}, 1).at(0);"
+        )
+    events = events.Define(f"{output_collection}mumask", mask)
+
+    # Now define all our columns... what about sorting!?
     if isinstance(columns, list):
-        sel_columns = [col[len(input_collection):] for col in columns if col.startswith(input_collection)] 
+        sel_columns = [
+            col[len(input_collection) :]
+            for col in columns
+            if col.startswith(input_collection)
+        ]
     elif isinstance(columns, str):
         raise NotImplementedError("regexp not currently supported")
     else:
-        sel_columns = [col[len(input_collection):] for col in avail_columns] + [f"{input_collection}idx"]
-    
+        sel_columns = [col[len(input_collection) :] for col in avail_columns] + [
+            f"{input_collection}idx"
+        ]
+
     if sort_column:
         # Build a take vector that must be applied to the SLICED variables
         # e.g. Take(Muon_eta[mu_mask], sort_indices_for_slice)
         if sort_reverse:
-            events = events.Define(f"{output_collection}mutake", 
-                                   f"return Reverse(Argsort({input_collection}{sort_column}[{output_collection}mumask]));")
+            events = events.Define(
+                f"{output_collection}mutake",
+                f"return Reverse(Argsort({input_collection}{sort_column}[{output_collection}mumask]));",
+            )
         else:
-            events = events.Define(f"{output_collection}mutake", 
-                                   f"return Argsort({input_collection}{sort_column}[{output_collection}mumask]);")
+            events = events.Define(
+                f"{output_collection}mutake",
+                f"return Argsort({input_collection}{sort_column}[{output_collection}mumask]);",
+            )
     else:
-        events = events.Define(f"{output_collection}mutake", f"return {input_collection}idx[{output_collection}mumask];")
-    events = events.Define(f"n{output_collection[:-1]}", f"return Sum({output_collection}mumask);")
+        events = events.Define(
+            f"{output_collection}mutake",
+            f"return {input_collection}idx[{output_collection}mumask];",
+        )
+    events = events.Define(
+        f"n{output_collection[:-1]}", f"return Sum({output_collection}mumask);"
+    )
     for scol in sel_columns:
-        #This can be replaced by .Select(Jet_*, ...) when that feature is supported
-        events = events.Define(output_collection + scol, 
-                               f"return Take({input_collection}{scol}[{output_collection}mumask], {output_collection}mutake);")
+        # This can be replaced by .Select(Jet_*, ...) when that feature is supported
+        events = events.Define(
+            output_collection + scol,
+            f"return Take({input_collection}{scol}[{output_collection}mumask], {output_collection}mutake);",
+        )
     return events
