@@ -23,14 +23,14 @@ def lepton_channel_categorization(
         iso_electrons += "_"
     if noniso_muons and not noniso_muons.endswith("_"):
         noniso_muons += "_"
-    if oniso_electrons and not noniso_electrons.endswith("_"):
+    if noniso_electrons and not noniso_electrons.endswith("_"):
         noniso_electrons += "_"
         
     # hold tag for our iso lepton multiplicities
     n_iso_e = f"n{iso_electrons[:-1]}"
     n_iso_mu = f"n{iso_muons[:-1]}"
-    n_noniso_e = f"n{noniso_electrons[:-1]}" if noniso_electrons else "0"
-    n_noniso_mu = f"n{noniso_muons[:-1]}" if noniso_muons else "0"
+    n_noniso_e = f"n{noniso_electrons[:-1]}" if noniso_electrons else "-1"
+    n_noniso_mu = f"n{noniso_muons[:-1]}" if noniso_muons else "-1"
     
     # Get our lepton charge sums for OSDL/SSDL categorization
     events = events.Define("sum_charge_iso_e", f"Sum({iso_electrons}charge)")
@@ -289,6 +289,7 @@ def dilepton_trigger_selection(
                 """(HLT_Mu12_TrkIsoVVL_Ele23_CaloIdL_TrackIdL_IsoVL_DZ == true)
                 && (first_iso_electron_pt > 25)
                 && (first_iso_muon_pt > 15)"""
+            )
         )
         events = events.Define(
             "trig_emu_MuonEG2",
@@ -296,6 +297,7 @@ def dilepton_trigger_selection(
                 """(HLT_Mu23_TrkIsoVVL_Ele12_CaloIdL_TrackIdL_IsoVL_DZ == true)
                 && (first_iso_electron_pt > 15)
                 && (first_iso_muon_pt > 25)"""
+            )
         )
         if not is_mc and run_period == "B":
             events = events.Define(
@@ -304,6 +306,7 @@ def dilepton_trigger_selection(
                     """(HLT_Mu17_TrkIsoVVL_Mu8_TrkIsoVVL_DZ == true)
                     && (first_iso_muon_pt > 25)
                     && (second_iso_muon_pt > 15)"""
+                )
             )
         else:
             events = events.Define(
@@ -312,13 +315,15 @@ def dilepton_trigger_selection(
                     """(HLT_Mu17_TrkIsoVVL_Mu8_TrkIsoVVL_DZ_Mass3p8 == true)
                     && (first_iso_muon_pt > 25)
                     && (second_iso_muon_pt > 15)"""
+                )
             )
         events = events.Define(
             "trig_ee_DoubleEG",
             (
                 """(HLT_Ele23_Ele12_CaloIdL_TrackIdL_IsoVL == true)
                 && (first_iso_electron_pt > 25)
-                && (second_iso_electron_pt > 15""")
+                && (second_iso_electron_pt > 15"""
+            )
         )
 
         events = events.Define(
@@ -327,6 +332,7 @@ def dilepton_trigger_selection(
                 """(HLT_IsoMu27 == true)
                 && (first_iso_electron_pt > 15)
                 && (first_iso_muon_pt > 30)"""
+            )
         )
         events = events.Define(
             "trig_emu_SingleElectron",
@@ -334,6 +340,7 @@ def dilepton_trigger_selection(
                 """(HLT_Ele35_WPTight_Gsf == true)
                 && (first_iso_electron_pt > 38)
                 && (first_iso_muon_pt > 15)"""
+            )
         )
         events = events.Define(
             "trig_mumu_SingleMuon",
@@ -341,6 +348,7 @@ def dilepton_trigger_selection(
                 """(HLT_IsoMu27 == true)
                 && (first_iso_muon_pt > 30)
                 && (second_iso_muon_pt > 15)"""
+            )
         )
         events = events.Define(
             "trig_ee_SingleElectron",
@@ -348,6 +356,7 @@ def dilepton_trigger_selection(
                 """(HLT_Ele35_WPTight_Gsf == true)
                 && (first_iso_electron_pt > 38)
                 && (second_iso_electron_pt > 15)"""
+            )
         )
         events = events.Define(
             "trig_emu_MET",
@@ -355,6 +364,7 @@ def dilepton_trigger_selection(
                 """subtrigger_MET
                 && ((first_iso_electron_pt > 25) && (first_iso_muon_pt > 15))
                 || ((first_iso_electron_pt > 15) && (first_iso_muon_pt > 25))"""
+            )
         )
         events = events.Define(
             "trig_mumu_MET",
@@ -362,9 +372,11 @@ def dilepton_trigger_selection(
         )
         events = events.Define(
             "trig_ee_MET", 
+            (
                 """subtrigger_MET
                 && (first_iso_electron_pt > 25)
                 && (second_iso_electron_pt > 15)"""
+            )
         )
         if is_mc:
             events = events.Define(
