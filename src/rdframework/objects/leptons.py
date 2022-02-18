@@ -44,7 +44,7 @@ def vidUnpackedWPSelection(electrons: Any, level: int) -> Any:
 
 def select_electrons_cutBased(
     events: Any,
-    input_collection: str
+    input_collection: str,
     output_collection: str,
     columns: list[str] | None,
     electron_id: int | str,
@@ -56,7 +56,7 @@ def select_electrons_cutBased(
     max_dz_endcap: float = 0.2,
     invert_cuts: list[str] | None = None,
     sort_column: str | None = "pt",
-    sort_reverse: bool = False,
+    sort_reverse: bool = True,
 ) -> Any:
     if not input_collection.endswith("_"):
         input_collection += "_"
@@ -87,7 +87,7 @@ def select_electrons_cutBased(
             (abs({input_collection}eta) > 1.5660)
             && (abs({input_collection}eta) <= {max_eta})
             && (abs({input_collection}ip3d) < {max_ip3d_endcap})
-            && (abs(vdz) < {max_dz_endcap})
+            && (abs({input_collection}dz) < {max_dz_endcap})
         ) && ({input_collection}pt >= {min_pt})"""
     if isinstance(invert_cuts, list) and len(invert_cuts) > 0:
         # add unpacked columns to dataset
@@ -101,7 +101,7 @@ def select_electrons_cutBased(
                 mask += f"\n && !({input_collection}{name} >= {e_id})"
     else:
         mask +=  f"\n && ({input_collection}cutBased >= {e_id})"
-    mask += ";"
+    mask += "; return emask;"
     print(mask)
     
     avail_columns = [str(col) for col in events.GetColumnNames() if str(col).startswith(input_collection)]
@@ -139,7 +139,7 @@ def select_electrons_cutBased(
 
 def select_muons_cutBased(
     events: Any,
-    input_collection: str
+    input_collection: str,
     output_collection: str,
     columns: list[str] | None,
     muon_id: str,
@@ -150,7 +150,7 @@ def select_muons_cutBased(
     max_dz: float = 0.2,
     invert_iso: bool = False,
     sort_column: str | None = "pt",
-    sort_reverse: bool = False,
+    sort_reverse: bool = True,
 ) -> Any:
     if not input_collection.endswith("_"):
         input_collection += "_"
@@ -205,7 +205,7 @@ def select_muons_cutBased(
     elif muon_id.lower() == "tight":
         mask += f"\n && ({input_collection}tightId)"
 
-    mask += ";"
+    mask += "; return mmask;"
     print(mask)
     avail_columns = [str(col) for col in events.GetColumnNames() if str(col).startswith(input_collection)]
     if not f"{input_collection}idx" in avail_columns:
