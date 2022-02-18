@@ -2,6 +2,7 @@ from __future__ import annotations
 
 from typing import Any
 
+
 def lepton_channel_categorization(
     events: Any,
     iso_muons: str,
@@ -25,13 +26,13 @@ def lepton_channel_categorization(
         noniso_muons += "_"
     if noniso_electrons and not noniso_electrons.endswith("_"):
         noniso_electrons += "_"
-        
+
     # hold tag for our iso lepton multiplicities
     n_iso_e = f"n{iso_electrons[:-1]}"
     n_iso_mu = f"n{iso_muons[:-1]}"
     n_noniso_e = f"n{noniso_electrons[:-1]}" if noniso_electrons else "-1"
     n_noniso_mu = f"n{noniso_muons[:-1]}" if noniso_muons else "-1"
-    
+
     # Get our lepton charge sums for OSDL/SSDL categorization
     events = events.Define("sum_charge_iso_e", f"Sum({iso_electrons}charge)")
     events = events.Define("sum_charge_iso_mu", f"Sum({iso_muons}charge)")
@@ -47,11 +48,14 @@ def lepton_channel_categorization(
         events = events.Define("sum_charge_noniso_e", f"Sum({noniso_electrons}charge)")
     else:
         events = events.Define("sum_charge_noniso_e", "return 0;")
-    events = events.Define("sum_charge_noniso_lep", "sum_charge_noniso_e + sum_charge_noniso_mu")
+    events = events.Define(
+        "sum_charge_noniso_lep", "sum_charge_noniso_e + sum_charge_noniso_mu"
+    )
 
-    events = events.Define("sum_charge_all", "sum_charge_iso_lep + sum_charge_noniso_lep")
-    
-    
+    events = events.Define(
+        "sum_charge_all", "sum_charge_iso_lep + sum_charge_noniso_lep"
+    )
+
     # Single lepton
     events = events.Define("iso_1e0mu", f"({n_iso_e} == 1) && ({n_iso_mu} == 0)")
     events = events.Define("iso_0e1mu", f"({n_iso_e} == 0) && ({n_iso_mu} == 1)")
@@ -77,19 +81,19 @@ def lepton_channel_categorization(
     # 1 isolated, 1 non-isolated leptons... for QCD background estimations... orthogonal to each other but not above channels
     events = events.Define(
         "iso_1e0mu_noniso_1e0mu",
-        f"({n_iso_e} == 1) && ({n_iso_mu} == 0) && ({n_noniso_e} == 1) && ({n_noniso_mu} == 0)"
+        f"({n_iso_e} == 1) && ({n_iso_mu} == 0) && ({n_noniso_e} == 1) && ({n_noniso_mu} == 0)",
     )
     events = events.Define(
         "iso_1e0mu_noniso_0e1mu",
-        f"({n_iso_e} == 1) && ({n_iso_mu} == 0) && ({n_noniso_e} == 0) && ({n_noniso_mu} == 1)"
+        f"({n_iso_e} == 1) && ({n_iso_mu} == 0) && ({n_noniso_e} == 0) && ({n_noniso_mu} == 1)",
     )
     events = events.Define(
         "iso_0e1mu_noniso_1e0mu",
-        f"({n_iso_e} == 0) && ({n_iso_mu} == 1) && ({n_noniso_e} == 1) && ({n_noniso_mu} == 0)"
+        f"({n_iso_e} == 0) && ({n_iso_mu} == 1) && ({n_noniso_e} == 1) && ({n_noniso_mu} == 0)",
     )
     events = events.Define(
         "iso_0e1mu_noniso_0e1mu",
-        f"({n_iso_e} == 0) && ({n_iso_mu} == 1) && ({n_noniso_e} == 0) && ({n_noniso_mu} == 1)"
+        f"({n_iso_e} == 0) && ({n_iso_mu} == 1) && ({n_noniso_e} == 0) && ({n_noniso_mu} == 1)",
     )
 
     # Add sum of isolated and nonisolated charges
@@ -102,21 +106,43 @@ def lepton_channel_categorization(
     events = events.Define("channel_mu", "(iso_0e1mu == true)")
     events = events.Define("channel_ee_OS", "(iso_2e0mu == true && iso_sumc0 == true)")
     events = events.Define("channel_emu_OS", "(iso_1e1mu == true && iso_sumc0 == true)")
-    events = events.Define("channel_mumu_OS", "(iso_0e2mu == true && iso_sumc0 == true)")
+    events = events.Define(
+        "channel_mumu_OS", "(iso_0e2mu == true && iso_sumc0 == true)"
+    )
     events = events.Define("channel_ee_SS", "(iso_2e0mu == true && iso_sumc0 == false)")
-    events = events.Define("channel_emu_SS", "(iso_1e1mu == true && iso_sumc0 == false)")
-    events = events.Define("channel_mumu_SS", "(iso_0e2mu == true && iso_sumc0 == false)")
+    events = events.Define(
+        "channel_emu_SS", "(iso_1e1mu == true && iso_sumc0 == false)"
+    )
+    events = events.Define(
+        "channel_mumu_SS", "(iso_0e2mu == true && iso_sumc0 == false)"
+    )
 
     # Add the inverted iso channels of interest, SUBSET OF 'e' and 'mu' channels!
     # isolated-lepton_nonisolated-lepton_dilepton-charge format
-    events = events.Define("channel_e_nie_OS", "(iso_1e0mu_noniso_1e0mu == true, sumc0 == true)")
-    events = events.Define("channel_e_nie_SS", "(iso_1e0mu_noniso_1e0mu == true, sumc0 == false)")
-    events = events.Define("channel_e_nim_OS", "(iso_1e0mu_noniso_0e1mu == true, sumc0 == true)")
-    events = events.Define("channel_e_nim_SS", "(iso_1e0mu_noniso_0e1mu == true, sumc0 == false)")
-    events = events.Define("channel_mu_nie_OS", "(iso_0e1mu_noniso_1e0mu == true, sumc0 == true)")
-    events = events.Define("channel_mu_nie_SS", "(iso_0e1mu_noniso_1e0mu == true, sumc0 == false)")
-    events = events.Define("channel_mu_nim_OS", "(iso_0e1mu_noniso_0e1mu == true, sumc0 == true)")
-    events = events.Define("channel_mu_nim_SS", "(iso_0e1mu_noniso_0e1mu == true, sumc0 == false)")
+    events = events.Define(
+        "channel_e_nie_OS", "(iso_1e0mu_noniso_1e0mu == true, sumc0 == true)"
+    )
+    events = events.Define(
+        "channel_e_nie_SS", "(iso_1e0mu_noniso_1e0mu == true, sumc0 == false)"
+    )
+    events = events.Define(
+        "channel_e_nim_OS", "(iso_1e0mu_noniso_0e1mu == true, sumc0 == true)"
+    )
+    events = events.Define(
+        "channel_e_nim_SS", "(iso_1e0mu_noniso_0e1mu == true, sumc0 == false)"
+    )
+    events = events.Define(
+        "channel_mu_nie_OS", "(iso_0e1mu_noniso_1e0mu == true, sumc0 == true)"
+    )
+    events = events.Define(
+        "channel_mu_nie_SS", "(iso_0e1mu_noniso_1e0mu == true, sumc0 == false)"
+    )
+    events = events.Define(
+        "channel_mu_nim_OS", "(iso_0e1mu_noniso_0e1mu == true, sumc0 == true)"
+    )
+    events = events.Define(
+        "channel_mu_nim_SS", "(iso_0e1mu_noniso_0e1mu == true, sumc0 == false)"
+    )
 
     return events
 
@@ -131,12 +157,12 @@ def dilepton_trigger_selection(
     data_stream: str | None = None,
     noniso_muons: str | None = None,
     noniso_electrons: str | None = None,
-) -> Any:    
+) -> Any:
     """
-    Takes as input an events dataframe, collection names for isolated leptons, year, run period, data stream, and 
+    Takes as input an events dataframe, collection names for isolated leptons, year, run period, data stream, and
     WIP note: Could be written to take advantage of DefinePerSample, but would be a significant departure from coffea"""
-    old_column_names = set([str(col) for col in events.GetColumnNames()])
-    
+    old_column_names = {str(col) for col in events.GetColumnNames()}
+
     if not iso_muons.endswith("_"):
         iso_muons += "_"
     if not iso_electrons.endswith("_"):
@@ -145,132 +171,123 @@ def dilepton_trigger_selection(
         noniso_muons += "_"
     if noniso_electrons and not noniso_electrons.endswith("_"):
         noniso_electrons += "_"
-        
-    events = events.Define("first_iso_muon_pt", 
-        f"{iso_muons}pt.at(0, 0.0)"
-    )
-    events = events.Define("second_iso_muon_pt", 
-        f"{iso_muons}pt.at(1, 0.0)"
-    )
-    events = events.Define("first_iso_electron_pt", 
-        f"{iso_electrons}pt.at(0, 0.0)"
-    )
-    events = events.Define("second_iso_electron_pt", 
-        f"{iso_electrons}pt.at(1, 0.0)"
-    )
+
+    events = events.Define("first_iso_muon_pt", f"{iso_muons}pt.at(0, 0.0)")
+    events = events.Define("second_iso_muon_pt", f"{iso_muons}pt.at(1, 0.0)")
+    events = events.Define("first_iso_electron_pt", f"{iso_electrons}pt.at(0, 0.0)")
+    events = events.Define("second_iso_electron_pt", f"{iso_electrons}pt.at(1, 0.0)")
 
     events = events.Define(
         "subtrigger_MET",
         """(HLT_PFMETTypeOne200_HBHE_BeamHaloCleaned
             || HLT_PFMET200_HBHECleaned
             || HLT_PFMET200_NotCleaned
-           ) && (MET_pt > 210)"""
+           ) && (MET_pt > 210)""",
     )
     if era == "2018":
         events = events.Define(
             "trig_emu_MuonEG1",
-                """(HLT_Mu12_TrkIsoVVL_Ele23_CaloIdL_TrackIdL_IsoVL_DZ == true)
+            """(HLT_Mu12_TrkIsoVVL_Ele23_CaloIdL_TrackIdL_IsoVL_DZ == true)
                 && (first_iso_electron_pt > 25)
-                && (first_iso_muon_pt > 15)"""
+                && (first_iso_muon_pt > 15)""",
         )
         events = events.Define(
             "trig_emu_MuonEG2",
-                """(HLT_Mu23_TrkIsoVVL_Ele12_CaloIdL_TrackIdL_IsoVL_DZ == true)
+            """(HLT_Mu23_TrkIsoVVL_Ele12_CaloIdL_TrackIdL_IsoVL_DZ == true)
                 && (first_iso_electron_pt > 15)
-                && (first_iso_muon_pt > 25)"""
+                && (first_iso_muon_pt > 25)""",
         )
         events = events.Define(
             "trig_mumu_DoubleMuon",
-                """(HLT_Mu17_TrkIsoVVL_Mu8_TrkIsoVVL_DZ_Mass3p8 == true)
+            """(HLT_Mu17_TrkIsoVVL_Mu8_TrkIsoVVL_DZ_Mass3p8 == true)
                 && (first_iso_muon_pt > 25)
-                && (second_iso_muon_pt > 15)"""
+                && (second_iso_muon_pt > 15)""",
         )
         events = events.Define(
             "trig_ee_EGamma1",
-                """(HLT_Ele23_Ele12_CaloIdL_TrackIdL_IsoVL == true)
+            """(HLT_Ele23_Ele12_CaloIdL_TrackIdL_IsoVL == true)
                 && (first_iso_electron_pt > 25)
-                && (second_iso_electron_pt > 15)"""
+                && (second_iso_electron_pt > 15)""",
         )
         # backup channels not used in the current analysis, but gains back some events...
         events = events.Define(
             "trig_emu_SingleMuon",
-                """(HLT_IsoMu24 == true)
+            """(HLT_IsoMu24 == true)
                 && (first_iso_electron_pt > 15)
-                && (first_iso_muon_pt > 27)"""
+                && (first_iso_muon_pt > 27)""",
         )
         events = events.Define(
             "trig_emu_EGamma",
-                """(HLT_Ele32_WPTight_Gsf == true)
+            """(HLT_Ele32_WPTight_Gsf == true)
                 && (first_iso_electron_pt > 35)
-                && (first_iso_muon_pt > 15)"""
+                && (first_iso_muon_pt > 15)""",
         )
         events = events.Define(
             "trig_mumu_SingleMuon",
-                """(HLT_IsoMu24 == true)
+            """(HLT_IsoMu24 == true)
                 && (first_iso_muon_pt > 27)
-                && (second_iso_muon_pt > 15)"""
+                && (second_iso_muon_pt > 15)""",
         )
         events = events.Define(
             "trig_ee_EGamma2",
-                """(HLT_Ele32_WPTight_Gsf == true)
+            """(HLT_Ele32_WPTight_Gsf == true)
                 && (first_iso_electron_pt > 35)
-                && (second_iso_electron_pt > 15)"""
+                && (second_iso_electron_pt > 15)""",
         )
         events = events.Define(
             "trig_emu_MET",
-                """subtrigger_MET
+            """subtrigger_MET
                 && ((first_iso_electron_pt > 25) && (first_iso_muon_pt > 15))
-                || ((first_iso_electron_pt > 15) && (first_iso_muon_pt > 25))"""
+                || ((first_iso_electron_pt > 15) && (first_iso_muon_pt > 25))""",
         )
         events = events.Define(
             "trig_mumu_MET",
-            """(subtrigger_MET && (first_iso_muon_pt > 25) && (second_iso_muon_pt > 15))"""
+            """(subtrigger_MET && (first_iso_muon_pt > 25) && (second_iso_muon_pt > 15))""",
         )
         events = events.Define(
             "trig_ee_MET",
-                """subtrigger_MET
+            """subtrigger_MET
                 && (first_iso_electron_pt > 25)
-                && (second_iso_electron_pt > 15)"""
+                && (second_iso_electron_pt > 15)""",
         )
         if is_mc:
             events = events.Define(
-                "trig_emu", "(trig_emu_MuonEG1 || trig_emu_MuonEG2 || trig_emu_SingleMuon || trig_emu_EGamma)"
+                "trig_emu",
+                "(trig_emu_MuonEG1 || trig_emu_MuonEG2 || trig_emu_SingleMuon || trig_emu_EGamma)",
             )
             events = events.Define(
                 "trig_mumu", "(trig_mumu_DoubleMuon || trig_mumu_SingleMuon)"
             )
-            events = events.Define(
-                "trig_ee", "(trig_ee_EGamma1 || trig_ee_EGamma2)"
-            )
+            events = events.Define("trig_ee", "(trig_ee_EGamma1 || trig_ee_EGamma2)")
         else:
             if data_stream == "MuonEG":
                 # Select emu if they pass any triggers, we'll pick up the rest from the exclusive events in SingleMuon and EGamma
                 events = events.Define(
                     "trig_emu", "(trig_emu_MuonEG1 || trig_emu_MuonEG2)"
-                )# , "trig_emu_SingleMuon || trig_emu_EGamma"),
+                )  # , "trig_emu_SingleMuon || trig_emu_EGamma"),
                 events = events.Define("trig_mumu", "false")
                 events = events.Define("trig_ee", "false")
             elif data_stream == "DoubleMuon":
                 events = events.Define("trig_emu", "false")
                 events = events.Define(
                     "trig_mumu", "trig_mumu_DoubleMuon"
-                )# , "trig_mumu_SingleMuon"),
+                )  # , "trig_mumu_SingleMuon"),
                 events = events.Define("trig_ee", "false")
             elif data_stream == "SingleMuon":
                 events = events.Define(
                     "trig_emu",
-                    "(trig_emu_MuonEG1  == false && trig_emu_MuonEG2  == false && trig_emu_SingleMuon == true)"
+                    "(trig_emu_MuonEG1  == false && trig_emu_MuonEG2  == false && trig_emu_SingleMuon == true)",
                 )
                 events = events.Define(
                     "trig_mumu",
-                    "trig_mumu_DoubleMuon  == false && trig_mumu_SingleMuon == true)"
+                    "trig_mumu_DoubleMuon  == false && trig_mumu_SingleMuon == true)",
                 )
                 events = events.Define("trig_ee", "false")
             elif data_stream == "EGamma":
                 events = events.Define(
                     "trig_emu",
                     """(trig_emu_MuonEG1  == false && trig_emu_MuonEG2  == false &&
-                        trig_emu_SingleMuon  == false && trig_emu_EGamma == true) """
+                        trig_emu_SingleMuon  == false && trig_emu_EGamma == true) """,
                 )
                 events = events.Define("trig_mumu", "false")
                 events = events.Define(
@@ -291,7 +308,7 @@ def dilepton_trigger_selection(
                 """(HLT_Mu12_TrkIsoVVL_Ele23_CaloIdL_TrackIdL_IsoVL_DZ == true)
                 && (first_iso_electron_pt > 25)
                 && (first_iso_muon_pt > 15)"""
-            )
+            ),
         )
         events = events.Define(
             "trig_emu_MuonEG2",
@@ -299,7 +316,7 @@ def dilepton_trigger_selection(
                 """(HLT_Mu23_TrkIsoVVL_Ele12_CaloIdL_TrackIdL_IsoVL_DZ == true)
                 && (first_iso_electron_pt > 15)
                 && (first_iso_muon_pt > 25)"""
-            )
+            ),
         )
         if not is_mc and run_period == "B":
             events = events.Define(
@@ -308,7 +325,7 @@ def dilepton_trigger_selection(
                     """(HLT_Mu17_TrkIsoVVL_Mu8_TrkIsoVVL_DZ == true)
                     && (first_iso_muon_pt > 25)
                     && (second_iso_muon_pt > 15)"""
-                )
+                ),
             )
         else:
             events = events.Define(
@@ -317,7 +334,7 @@ def dilepton_trigger_selection(
                     """(HLT_Mu17_TrkIsoVVL_Mu8_TrkIsoVVL_DZ_Mass3p8 == true)
                     && (first_iso_muon_pt > 25)
                     && (second_iso_muon_pt > 15)"""
-                )
+                ),
             )
         events = events.Define(
             "trig_ee_DoubleEG",
@@ -325,7 +342,7 @@ def dilepton_trigger_selection(
                 """(HLT_Ele23_Ele12_CaloIdL_TrackIdL_IsoVL == true)
                 && (first_iso_electron_pt > 25)
                 && (second_iso_electron_pt > 15"""
-            )
+            ),
         )
 
         events = events.Define(
@@ -334,7 +351,7 @@ def dilepton_trigger_selection(
                 """(HLT_IsoMu27 == true)
                 && (first_iso_electron_pt > 15)
                 && (first_iso_muon_pt > 30)"""
-            )
+            ),
         )
         events = events.Define(
             "trig_emu_SingleElectron",
@@ -342,7 +359,7 @@ def dilepton_trigger_selection(
                 """(HLT_Ele35_WPTight_Gsf == true)
                 && (first_iso_electron_pt > 38)
                 && (first_iso_muon_pt > 15)"""
-            )
+            ),
         )
         events = events.Define(
             "trig_mumu_SingleMuon",
@@ -350,7 +367,7 @@ def dilepton_trigger_selection(
                 """(HLT_IsoMu27 == true)
                 && (first_iso_muon_pt > 30)
                 && (second_iso_muon_pt > 15)"""
-            )
+            ),
         )
         events = events.Define(
             "trig_ee_SingleElectron",
@@ -358,7 +375,7 @@ def dilepton_trigger_selection(
                 """(HLT_Ele35_WPTight_Gsf == true)
                 && (first_iso_electron_pt > 38)
                 && (second_iso_electron_pt > 15)"""
-            )
+            ),
         )
         events = events.Define(
             "trig_emu_MET",
@@ -366,23 +383,24 @@ def dilepton_trigger_selection(
                 """subtrigger_MET
                 && ((first_iso_electron_pt > 25) && (first_iso_muon_pt > 15))
                 || ((first_iso_electron_pt > 15) && (first_iso_muon_pt > 25))"""
-            )
+            ),
         )
         events = events.Define(
             "trig_mumu_MET",
-            """(subtrigger_MET && (first_iso_muon_pt > 25) && (second_iso_muon_pt > 15))"""
+            """(subtrigger_MET && (first_iso_muon_pt > 25) && (second_iso_muon_pt > 15))""",
         )
         events = events.Define(
-            "trig_ee_MET", 
+            "trig_ee_MET",
             (
                 """subtrigger_MET
                 && (first_iso_electron_pt > 25)
                 && (second_iso_electron_pt > 15)"""
-            )
+            ),
         )
         if is_mc:
             events = events.Define(
-                "trig_emu", "(trig_emu_MuonEG1 || trig_emu_MuonEG2 || trig_emu_SingleMuon || trig_emu_SingleElectron)"
+                "trig_emu",
+                "(trig_emu_MuonEG1 || trig_emu_MuonEG2 || trig_emu_SingleMuon || trig_emu_SingleElectron)",
             )
             events = events.Define(
                 "trig_mumu", "(trig_mumu_DoubleMuon || trig_mumu_SingleMuon)"
@@ -399,21 +417,23 @@ def dilepton_trigger_selection(
                 # Select emu if they pass any triggers, we'll pick up the rest from the exclusive events in SingleMuon and SingleElectron
                 events = events.Define(
                     "trig_emu", "trig_emu_MuonEG1 || trig_emu_MuonEG2"
-                )# , "trig_emu_SingleMuon", "trig_emu_SingleElectron"), #This doesn't veto properly
+                )  # , "trig_emu_SingleMuon", "trig_emu_SingleElectron"), #This doesn't veto properly
                 events = events.Define("trig_mumu", "false")
                 events = events.Define("trig_ee", "false")
             elif data_stream == "DoubleMuon":
                 events = events.Define("trig_emu", "false")
                 events = events.Define(
                     "trig_mumu", "trig_mumu_DoubleMuon"
-                )# , "trig_mumu_SingleMuon"),
+                )  # , "trig_mumu_SingleMuon"),
                 events = events.Define("trig_ee", "false")
             elif data_stream == "SingleMuon":
                 events = events.Define(
-                    "trig_emu", "(trig_emu_MuonEG1 == false && trig_emu_MuonEG2 == false && trig_emu_SingleMuon == true)"
+                    "trig_emu",
+                    "(trig_emu_MuonEG1 == false && trig_emu_MuonEG2 == false && trig_emu_SingleMuon == true)",
                 )
                 events = events.Define(
-                    "trig_mumu", "(trig_mumu_DoubleMuon == false && trig_mumu_SingleMuon == true)"
+                    "trig_mumu",
+                    "(trig_mumu_DoubleMuon == false && trig_mumu_SingleMuon == true)",
                 )
                 events = events.Define("trig_ee", "false")
             elif data_stream == "DoubleEG":
@@ -421,16 +441,17 @@ def dilepton_trigger_selection(
                 events = events.Define("trig_mumu", "false")
                 events = events.Define(
                     "trig_ee", "trig_ee_DoubleEG"
-                )# , "trig_ee_SingleElectron"),
+                )  # , "trig_ee_SingleElectron"),
             elif data_stream == "SingleElectron":
                 events = events.Define(
-                    "trig_emu", 
-                    """trig_emu_MuonEG1 == false && trig_emu_MuonEG2 == false && 
-                    trig_emu_SingleMuon == false && trig_emu_SingleElectron == true)"""
+                    "trig_emu",
+                    """trig_emu_MuonEG1 == false && trig_emu_MuonEG2 == false &&
+                    trig_emu_SingleMuon == false && trig_emu_SingleElectron == true)""",
                 )
                 events = events.Define("trig_mumu", "false")
                 events = events.Define(
-                    "trig_ee", "(trig_ee_DoubleEG == false && trig_ee_SingleElectron == true)"
+                    "trig_ee",
+                    "(trig_ee_DoubleEG == false && trig_ee_SingleElectron == true)",
                 )
             elif data_stream == "MET":
                 raise NotImplementedError
@@ -442,8 +463,9 @@ def dilepton_trigger_selection(
             # for the SingleMuon datastream/backup trigger, so no double counting events in the MuonEG datastream+trigger
     elif era == "2016":
         raise NotImplementedError
-        
-    new_column_names = list(set([str(col) for col in events.GetDefinedColumnNames()]) - old_column_names)
+
+    new_column_names = list(
+        {str(col) for col in events.GetDefinedColumnNames()} - old_column_names
+    )
     new_column_names.sort()
-    print(new_column_names)
     return events
