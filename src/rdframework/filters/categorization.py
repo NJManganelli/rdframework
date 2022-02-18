@@ -21,9 +21,9 @@ def lepton_channel_categorization(
         iso_muons += "_"
     if not iso_electrons.endswith("_"):
         iso_electrons += "_"
-    if not noniso_muons.endswith("_"):
+    if noniso_muons and not noniso_muons.endswith("_"):
         noniso_muons += "_"
-    if not noniso_electrons.endswith("_"):
+    if oniso_electrons and not noniso_electrons.endswith("_"):
         noniso_electrons += "_"
         
     # hold tag for our iso lepton multiplicities
@@ -123,230 +123,156 @@ def lepton_channel_categorization(
 
 def dilepton_trigger_selection(
     events: Any,
-    iso_muons: Any,
-    iso_electrons: Any,
+    iso_muons: str,
+    iso_electrons: str,
     era: str,
     is_mc: bool,
     run_period: str | None = None,
     data_stream: str | None = None,
-    noniso_muons: Any | None = None,
-    noniso_electrons: Any | None = None,
-) -> Any:
-    # This needs to be rethought. Maybe go down to the TriggerObject level and rely upon that instead!
-    # Leading lepton pt's for trigger matching, broadcast-able with trigger arrays (1D in events axis)
-    first_iso_muon_pt = ak.flatten(
-        select_with_default(iso_muons, "pt", elements=0, default=0.0, axis=-1)
+    noniso_muons: str | None = None,
+    noniso_electrons: str | None = None,
+) -> Any:    
+    """
+    Takes as input an events dataframe, collection names for isolated leptons, year, run period, data stream, and 
+    WIP note: Could be written to take advantage of DefinePerSample, but would be a significant departure from coffea"""
+    if not iso_muons.endswith("_"):
+        iso_muons += "_"
+    if not iso_electrons.endswith("_"):
+        iso_electrons += "_"
+    if noniso_muons and not noniso_muons.endswith("_"):
+        noniso_muons += "_"
+    if noniso_electrons and not noniso_electrons.endswith("_"):
+        noniso_electrons += "_"
+        
+    events = events.Define("first_iso_muon_pt", 
+        f"{iso_muons}pt.at(0, 0.0)"
     )
-    second_iso_muon_pt = ak.flatten(
-        select_with_default(iso_muons, "pt", elements=1, default=0.0, axis=-1)
+    events = events.Define("second_iso_muon_pt", 
+        f"{iso_muons}pt.at(1, 0.0)"
     )
-    first_iso_electron_pt = ak.flatten(
-        select_with_default(iso_electrons, "pt", elements=0, default=0.0, axis=-1)
+    events = events.Define("first_iso_electron_pt", 
+        f"{iso_electrons}pt.at(0, 0.0)"
     )
-    second_iso_electron_pt = ak.flatten(
-        select_with_default(iso_electrons, "pt", elements=1, default=0.0, axis=-1)
+    events = events.Define("second_iso_electron_pt", 
+        f"{iso_electrons}pt.at(1, 0.0)"
     )
 
-    # a_first_iso_muon_pt = ak.flatten(ak.fill_none(ak.pad_none(iso_muons[:, 0:1].pt, target=1, axis=-1), value=0.0, axis=-1))
-    # a_second_iso_muon_pt = ak.flatten(ak.fill_none(ak.pad_none(iso_muons[:, 1:2].pt, target=1, axis=-1), value=0.0, axis=-1))
-    # a_first_iso_electron_pt = ak.flatten(ak.fill_none(ak.pad_none(iso_electrons[:, 0:1].pt, target=1, axis=-1), value=0.0, axis=-1))
-    # a_second_iso_electron_pt = ak.flatten(ak.fill_none(ak.pad_none(iso_electrons[:, 1:2].pt, target=1, axis=-1), value=0.0, axis=-1))
-
-    # assert ak.all(first_iso_muon_pt == a_first_iso_muon_pt)
-    # assert ak.all(second_iso_muon_pt == a_second_iso_muon_pt)
-    # assert ak.all(first_iso_electron_pt == a_first_iso_electron_pt)
-    # assert ak.all(second_iso_electron_pt == a_second_iso_electron_pt)
-
-    trig_masks = PackedSelection(dtype="uint32")
-    # Store masks as trig_channel_datastream<number>, e.g. trig_emu_MuonEG1 and ...MuonEG2 are the two electron-muon
-    # dilepton trigger paths, selecting events from the MuonEG datastream if is_mc=False and being used as a veto from
-    # other datastreams... in 2018, the DoubleElectron datastream doesn't exist anymore, so... care must be taken
-    # minimally dilepton events... does not include the single-lepton events, with or without a noniso 2nd lepton
-    # WAITWAITWAIT... does it still make sense to make these 'dilepton' triggers? hard to say with ML events... "\
-    # "yeah, probably, then make another one for single lepton or ML events, and require appropriate lepton pts")
-    # Is there a good reason why everyone doesn't use the real trigger-level objects? That would be cleaner...
-    subtrigger_MET = (
-        events.HLT.PFMETTypeOne200_HBHE_BeamHaloCleaned
-        | events.HLT.PFMET200_HBHECleaned
-        | events.HLT.PFMET200_NotCleaned
-    ) & (events.MET.pt > 210)
-    false_val = (
-        events.MET.pt < 0
-    )  # always false, for filling non-permissible data_stream + trigger combos
+    events = events.Define(
+        "subtrigger_MET",
+        """(HLT_PFMETTypeOne200_HBHE_BeamHaloCleaned
+            || HLT_PFMET200_HBHECleaned
+            || HLT_PFMET200_NotCleaned
+           ) && (MET_pt > 210)"""
+    )
     if era == "2018":
-        trig_masks.add(
+        events = events.Define(
             "trig_emu_MuonEG1",
-            (
-                (events.HLT.Mu12_TrkIsoVVL_Ele23_CaloIdL_TrackIdL_IsoVL_DZ == True)
-                & (first_iso_electron_pt > 25)
-                & (first_iso_muon_pt > 15)
-            ),
-            fill_value=False,
+                """(HLT_Mu12_TrkIsoVVL_Ele23_CaloIdL_TrackIdL_IsoVL_DZ == true)
+                && (first_iso_electron_pt > 25)
+                && (first_iso_muon_pt > 15)"""
         )
-        trig_masks.add(
+        events = events.Define(
             "trig_emu_MuonEG2",
-            (
-                (events.HLT.Mu23_TrkIsoVVL_Ele12_CaloIdL_TrackIdL_IsoVL_DZ == True)
-                & (first_iso_electron_pt > 15)
-                & (first_iso_muon_pt > 25)
-            ),
-            fill_value=False,
+                """(HLT_Mu23_TrkIsoVVL_Ele12_CaloIdL_TrackIdL_IsoVL_DZ == true)
+                && (first_iso_electron_pt > 15)
+                && (first_iso_muon_pt > 25)"""
         )
-        trig_masks.add(
+        events = events.Define(
             "trig_mumu_DoubleMuon",
-            (
-                (events.HLT.Mu17_TrkIsoVVL_Mu8_TrkIsoVVL_DZ_Mass3p8 == True)
-                & (first_iso_muon_pt > 25)
-                & (second_iso_muon_pt > 15)
-            ),
-            fill_value=False,
+                """(HLT_Mu17_TrkIsoVVL_Mu8_TrkIsoVVL_DZ_Mass3p8 == true)
+                && (first_iso_muon_pt > 25)
+                && (second_iso_muon_pt > 15)"""
         )
-        trig_masks.add(
+        events = events.Define(
             "trig_ee_EGamma1",
-            (
-                (events.HLT.Ele23_Ele12_CaloIdL_TrackIdL_IsoVL == True)
-                & (first_iso_electron_pt > 25)
-                & (second_iso_electron_pt > 15)
-            ),
-            fill_value=False,
+                """(HLT_Ele23_Ele12_CaloIdL_TrackIdL_IsoVL == true)
+                && (first_iso_electron_pt > 25)
+                && (second_iso_electron_pt > 15)"""
         )
         # backup channels not used in the current analysis, but gains back some events...
-        trig_masks.add(
+        events = events.Define(
             "trig_emu_SingleMuon",
-            (
-                (events.HLT.IsoMu24 == True)
-                & (first_iso_electron_pt > 15)
-                & (first_iso_muon_pt > 27)
-            ),
-            fill_value=False,
+                """(HLT_IsoMu24 == true)
+                && (first_iso_electron_pt > 15)
+                && (first_iso_muon_pt > 27)"""
         )
-        trig_masks.add(
+        events = events.Define(
             "trig_emu_EGamma",
-            (
-                (events.HLT.Ele32_WPTight_Gsf == True)
-                & (first_iso_electron_pt > 35)
-                & (first_iso_muon_pt > 15)
-            ),
-            fill_value=False,
+                """(HLT_Ele32_WPTight_Gsf == true)
+                && (first_iso_electron_pt > 35)
+                && (first_iso_muon_pt > 15)"""
         )
-        trig_masks.add(
+        events = events.Define(
             "trig_mumu_SingleMuon",
-            (
-                (events.HLT.IsoMu24 == True)
-                & (first_iso_muon_pt > 27)
-                & (second_iso_muon_pt > 15)
-            ),
-            fill_value=False,
+                """(HLT_IsoMu24 == true)
+                && (first_iso_muon_pt > 27)
+                && (second_iso_muon_pt > 15)"""
         )
-        trig_masks.add(
+        events = events.Define(
             "trig_ee_EGamma2",
-            (
-                (events.HLT.Ele32_WPTight_Gsf == True)
-                & (first_iso_electron_pt > 35)
-                & (second_iso_electron_pt > 15)
-            ),
-            fill_value=False,
+                """(HLT_Ele32_WPTight_Gsf == true)
+                && (first_iso_electron_pt > 35)
+                && (second_iso_electron_pt > 15)"""
         )
-        trig_masks.add(
+        events = events.Define(
             "trig_emu_MET",
-            (
-                subtrigger_MET
-                & ((first_iso_electron_pt > 25) & (first_iso_muon_pt > 15))
-                | ((first_iso_electron_pt > 15) & (first_iso_muon_pt > 25))
-            ),
-            fill_value=False,
+                """subtrigger_MET
+                && ((first_iso_electron_pt > 25) && (first_iso_muon_pt > 15))
+                || ((first_iso_electron_pt > 15) && (first_iso_muon_pt > 25))"""
         )
-        trig_masks.add(
+        events = events.Define(
             "trig_mumu_MET",
-            (subtrigger_MET & (first_iso_muon_pt > 25) & (second_iso_muon_pt > 15)),
-            fill_value=False,
+            """(subtrigger_MET && (first_iso_muon_pt > 25) && (second_iso_muon_pt > 15))"""
         )
-        trig_masks.add(
+        events = events.Define(
             "trig_ee_MET",
-            (
-                subtrigger_MET
-                & (first_iso_electron_pt > 25)
-                & (second_iso_electron_pt > 15)
-            ),
-            fill_value=False,
+                """subtrigger_MET
+                && (first_iso_electron_pt > 25)
+                && (second_iso_electron_pt > 15)"""
         )
         if is_mc:
-            trig_masks.add(
-                "trig_emu",
-                trig_masks.any(
-                    "trig_emu_MuonEG1",
-                    "trig_emu_MuonEG2",
-                    "trig_emu_SingleMuon",
-                    "trig_emu_EGamma",
-                ),
-                fill_value=False,
+            events = events.Define(
+                "trig_emu", "(trig_emu_MuonEG1 || trig_emu_MuonEG2 || trig_emu_SingleMuon || trig_emu_EGamma)"
             )
-            trig_masks.add(
-                "trig_mumu",
-                trig_masks.any("trig_mumu_DoubleMuon", "trig_mumu_SingleMuon"),
-                fill_value=False,
+            events = events.Define(
+                "trig_mumu", "(trig_mumu_DoubleMuon || trig_mumu_SingleMuon"
             )
-            trig_masks.add(
-                "trig_ee",
-                trig_masks.any("trig_ee_EGamma1", "trig_ee_EGamma2"),
-                fill_value=False,
+            events = events.Define(
+                "trig_ee", "(trig_ee_EGamma1 || trig_ee_EGamma2)"
             )
         else:
             if data_stream == "MuonEG":
                 # Select emu if they pass any triggers, we'll pick up the rest from the exclusive events in SingleMuon and EGamma
-                trig_masks.add(
-                    "trig_emu",
-                    trig_masks.any(
-                        "trig_emu_MuonEG1", "trig_emu_MuonEG2"
-                    ),  # , "trig_emu_SingleMuon", "trig_emu_EGamma"),
-                    fill_value=False,
-                )
-                trig_masks.add("trig_mumu", false_val, fill_value=False)
-                trig_masks.add("trig_ee", false_val, fill_value=False)
+                events = events.Define(
+                    "trig_emu", "(trig_emu_MuonEG1 || trig_emu_MuonEG2)"
+                )# , "trig_emu_SingleMuon || trig_emu_EGamma"),
+                events = events.Define("trig_mumu", "false")
+                events = events.Define("trig_ee", "false")
             elif data_stream == "DoubleMuon":
-                trig_masks.add("trig_emu", false_val, fill_value=False)
-                trig_masks.add(
-                    "trig_mumu",
-                    trig_masks.any(
-                        "trig_mumu_DoubleMuon"
-                    ),  # , "trig_mumu_SingleMuon"),
-                    fill_value=False,
-                )
-                trig_masks.add("trig_ee", false_val, fill_value=False)
+                events = events.Define("trig_emu", "false")
+                events = events.Define(
+                    "trig_mumu", "trig_mumu_DoubleMuon"
+                )# , "trig_mumu_SingleMuon"),
+                events = events.Define("trig_ee", "false")
             elif data_stream == "SingleMuon":
-                trig_masks.add(
+                events = events.Define(
                     "trig_emu",
-                    trig_masks.require(
-                        trig_emu_MuonEG1=False,
-                        trig_emu_MuonEG2=False,
-                        trig_emu_SingleMuon=True,
-                    ),
-                    fill_value=False,
+                    "(trig_emu_MuonEG1  == false && trig_emu_MuonEG2  == false && trig_emu_SingleMuon == true)"
                 )
-                trig_masks.add(
+                events = events.Define(
                     "trig_mumu",
-                    trig_masks.require(
-                        trig_mumu_DoubleMuon=False, trig_mumu_SingleMuon=True
-                    ),
-                    fill_value=False,
+                    "trig_mumu_DoubleMuon  == false && trig_mumu_SingleMuon == true)"
                 )
-                trig_masks.add("trig_ee", false_val, fill_value=False)
+                events = events.Define("trig_ee", "false")
             elif data_stream == "EGamma":
-                trig_masks.add(
+                events = events.Define(
                     "trig_emu",
-                    trig_masks.require(
-                        trig_emu_MuonEG1=False,
-                        trig_emu_MuonEG2=False,
-                        trig_emu_SingleMuon=False,
-                        trig_emu_EGamma=True,
-                    ),
-                    fill_value=False,
+                    """(trig_emu_MuonEG1  == false && trig_emu_MuonEG2  == false &&
+                        trig_emu_SingleMuon  == false && trig_emu_EGamma == true) """
                 )
-                trig_masks.add("trig_mumu", false_val, fill_value=False)
-                trig_masks.add(
-                    "trig_ee",
-                    trig_masks.any("trig_ee_EGamma1", "trig_ee_EGamma2"),
-                    fill_value=False,
+                events = events.Define("trig_mumu", "false")
+                events = events.Define(
+                    "trig_ee", "(trig_ee_EGamma1 || trig_ee_EGamma2)"
                 )
             elif data_stream == "MET":
                 raise NotImplementedError
@@ -354,136 +280,101 @@ def dilepton_trigger_selection(
                 raise ValueError(
                     f"data_stream must be specified for is_mc=False (for event overlap removal), input: {data_stream}"
                 )
-            # Do e.g. trig_masks.require(trig_emu_MuonEG1=False, trig_emu_MuonEG2=False, trig_emu_SingleMuon=True)
+            # Do e.g. trig_masks.require(trig_emu_MuonEG1  == false &&, trig_emu_MuonEG2  == false &&, trig_emu_SingleMuon=True)
             # for the SingleMuon datastream/backup trigger, so no double counting events in the MuonEG datastream+trigger
     elif era == "2017":
-        trig_masks.add(
+        events = events.Define(
             "trig_emu_MuonEG1",
             (
-                (events.HLT.Mu12_TrkIsoVVL_Ele23_CaloIdL_TrackIdL_IsoVL_DZ == True)
-                & (first_iso_electron_pt > 25)
-                & (first_iso_muon_pt > 15)
-            ),
-            fill_value=False,
+                """(HLT_Mu12_TrkIsoVVL_Ele23_CaloIdL_TrackIdL_IsoVL_DZ == true)
+                && (first_iso_electron_pt > 25)
+                && (first_iso_muon_pt > 15)"""
         )
-        trig_masks.add(
+        events = events.Define(
             "trig_emu_MuonEG2",
             (
-                (events.HLT.Mu23_TrkIsoVVL_Ele12_CaloIdL_TrackIdL_IsoVL_DZ == True)
-                & (first_iso_electron_pt > 15)
-                & (first_iso_muon_pt > 25)
-            ),
-            fill_value=False,
+                """(HLT_Mu23_TrkIsoVVL_Ele12_CaloIdL_TrackIdL_IsoVL_DZ == true)
+                && (first_iso_electron_pt > 15)
+                && (first_iso_muon_pt > 25)"""
         )
         if not is_mc and run_period == "B":
-            trig_masks.add(
+            events = events.Define(
                 "trig_mumu_DoubleMuon",
                 (
-                    (events.HLT.Mu17_TrkIsoVVL_Mu8_TrkIsoVVL_DZ == True)
-                    & (first_iso_muon_pt > 25)
-                    & (second_iso_muon_pt > 15)
-                ),
-                fill_value=False,
+                    """(HLT_Mu17_TrkIsoVVL_Mu8_TrkIsoVVL_DZ == true)
+                    && (first_iso_muon_pt > 25)
+                    && (second_iso_muon_pt > 15)"""
             )
         else:
-            trig_masks.add(
+            events = events.Define(
                 "trig_mumu_DoubleMuon",
                 (
-                    (events.HLT.Mu17_TrkIsoVVL_Mu8_TrkIsoVVL_DZ_Mass3p8 == True)
-                    & (first_iso_muon_pt > 25)
-                    & (second_iso_muon_pt > 15)
-                ),
-                fill_value=False,
+                    """(HLT_Mu17_TrkIsoVVL_Mu8_TrkIsoVVL_DZ_Mass3p8 == true)
+                    && (first_iso_muon_pt > 25)
+                    && (second_iso_muon_pt > 15)"""
             )
-        trig_masks.add(
+        events = events.Define(
             "trig_ee_DoubleEG",
             (
-                (events.HLT.Ele23_Ele12_CaloIdL_TrackIdL_IsoVL == True)
-                & (first_iso_electron_pt > 25)
-                & (second_iso_electron_pt > 15)
-            ),
-            fill_value=False,
+                """(HLT_Ele23_Ele12_CaloIdL_TrackIdL_IsoVL == true)
+                && (first_iso_electron_pt > 25)
+                && (second_iso_electron_pt > 15""")
         )
 
-        trig_masks.add(
+        events = events.Define(
             "trig_emu_SingleMuon",
             (
-                (events.HLT.IsoMu27 == True)
-                & (first_iso_electron_pt > 15)
-                & (first_iso_muon_pt > 30)
-            ),
-            fill_value=False,
+                """(HLT_IsoMu27 == true)
+                && (first_iso_electron_pt > 15)
+                && (first_iso_muon_pt > 30)"""
         )
-        trig_masks.add(
+        events = events.Define(
             "trig_emu_SingleElectron",
             (
-                (events.HLT.Ele35_WPTight_Gsf == True)
-                & (first_iso_electron_pt > 38)
-                & (first_iso_muon_pt > 15)
-            ),
-            fill_value=False,
+                """(HLT_Ele35_WPTight_Gsf == true)
+                && (first_iso_electron_pt > 38)
+                && (first_iso_muon_pt > 15)"""
         )
-        trig_masks.add(
+        events = events.Define(
             "trig_mumu_SingleMuon",
             (
-                (events.HLT.IsoMu27 == True)
-                & (first_iso_muon_pt > 30)
-                & (second_iso_muon_pt > 15)
-            ),
-            fill_value=False,
+                """(HLT_IsoMu27 == true)
+                && (first_iso_muon_pt > 30)
+                && (second_iso_muon_pt > 15)"""
         )
-        trig_masks.add(
+        events = events.Define(
             "trig_ee_SingleElectron",
             (
-                (events.HLT.Ele35_WPTight_Gsf == True)
-                & (first_iso_electron_pt > 38)
-                & (second_iso_electron_pt > 15)
-            ),
-            fill_value=False,
+                """(HLT_Ele35_WPTight_Gsf == true)
+                && (first_iso_electron_pt > 38)
+                && (second_iso_electron_pt > 15)"""
         )
-        trig_masks.add(
+        events = events.Define(
             "trig_emu_MET",
             (
-                subtrigger_MET
-                & ((first_iso_electron_pt > 25) & (first_iso_muon_pt > 15))
-                | ((first_iso_electron_pt > 15) & (first_iso_muon_pt > 25))
-            ),
-            fill_value=False,
+                """subtrigger_MET
+                && ((first_iso_electron_pt > 25) && (first_iso_muon_pt > 15))
+                || ((first_iso_electron_pt > 15) && (first_iso_muon_pt > 25))"""
         )
-        trig_masks.add(
+        events = events.Define(
             "trig_mumu_MET",
-            (subtrigger_MET & (first_iso_muon_pt > 25) & (second_iso_muon_pt > 15)),
-            fill_value=False,
+            """(subtrigger_MET && (first_iso_muon_pt > 25) && (second_iso_muon_pt > 15))"""
         )
-        trig_masks.add(
-            "trig_ee_MET",
-            (
-                subtrigger_MET
-                & (first_iso_electron_pt > 25)
-                & (second_iso_electron_pt > 15)
-            ),
-            fill_value=False,
+        events = events.Define(
+            "trig_ee_MET", 
+                """subtrigger_MET
+                && (first_iso_electron_pt > 25)
+                && (second_iso_electron_pt > 15)"""
         )
         if is_mc:
-            trig_masks.add(
-                "trig_emu",
-                trig_masks.any(
-                    "trig_emu_MuonEG1",
-                    "trig_emu_MuonEG2",
-                    "trig_emu_SingleMuon",
-                    "trig_emu_SingleElectron",
-                ),
-                fill_value=False,
+            events = events.Define(
+                "trig_emu", "(trig_emu_MuonEG1 || trig_emu_MuonEG2 || trig_emu_SingleMuon || trig_emu_SingleElectron)"
             )
-            trig_masks.add(
-                "trig_mumu",
-                trig_masks.any("trig_mumu_DoubleMuon", "trig_mumu_SingleMuon"),
-                fill_value=False,
+            events = events.Define(
+                "trig_mumu", "(trig_mumu_DoubleMuon || trig_mumu_SingleMuon)"
             )
-            trig_masks.add(
-                "trig_ee",
-                trig_masks.any("trig_ee_DoubleEG", "trig_ee_SingleElectron"),
-                fill_value=False,
+            events = events.Define(
+                "trig_ee", "(trig_ee_DoubleEG || trig_ee_SingleElectron"
             )
             # TODO:
             # Insert dilepton events triggered on MET, NO overlap removal in data - use these for trigger scale factors
@@ -492,69 +383,40 @@ def dilepton_trigger_selection(
         else:
             if data_stream == "MuonEG":
                 # Select emu if they pass any triggers, we'll pick up the rest from the exclusive events in SingleMuon and SingleElectron
-                trig_masks.add(
-                    "trig_emu",
-                    trig_masks.any(
-                        "trig_emu_MuonEG1", "trig_emu_MuonEG2"
-                    ),  # , "trig_emu_SingleMuon", "trig_emu_SingleElectron"), #This doesn't veto properly
-                    fill_value=False,
-                )
-                trig_masks.add("trig_mumu", false_val, fill_value=False)
-                trig_masks.add("trig_ee", false_val, fill_value=False)
+                events = events.Define(
+                    "trig_emu", "trig_emu_MuonEG1 || trig_emu_MuonEG2"
+                )# , "trig_emu_SingleMuon", "trig_emu_SingleElectron"), #This doesn't veto properly
+                events = events.Define("trig_mumu", "false")
+                events = events.Define("trig_ee", "false")
             elif data_stream == "DoubleMuon":
-                trig_masks.add("trig_emu", false_val, fill_value=False)
-                trig_masks.add(
-                    "trig_mumu",
-                    trig_masks.any(
-                        "trig_mumu_DoubleMuon"
-                    ),  # , "trig_mumu_SingleMuon"),
-                    fill_value=False,
-                )
-                trig_masks.add("trig_ee", false_val, fill_value=False)
+                events = events.Define("trig_emu", "false")
+                events = events.Define(
+                    "trig_mumu", "trig_mumu_DoubleMuon"
+                )# , "trig_mumu_SingleMuon"),
+                events = events.Define("trig_ee", "false")
             elif data_stream == "SingleMuon":
-                trig_masks.add(
-                    "trig_emu",
-                    trig_masks.require(
-                        trig_emu_MuonEG1=False,
-                        trig_emu_MuonEG2=False,
-                        trig_emu_SingleMuon=True,
-                    ),
-                    fill_value=False,
+                events = events.Define(
+                    "trig_emu", "(trig_emu_MuonEG1 == false && trig_emu_MuonEG2 == false && trig_emu_SingleMuon == true)"
                 )
-                trig_masks.add(
-                    "trig_mumu",
-                    trig_masks.require(
-                        trig_mumu_DoubleMuon=False, trig_mumu_SingleMuon=True
-                    ),
-                    fill_value=False,
+                events = events.Define(
+                    "trig_mumu", "(trig_mumu_DoubleMuon == false && trig_mumu_SingleMuon == true)"
                 )
-                trig_masks.add("trig_ee", false_val, fill_value=False)
+                events = events.Define("trig_ee", "false")
             elif data_stream == "DoubleEG":
-                trig_masks.add("trig_emu", false_val, fill_value=False)
-                trig_masks.add("trig_mumu", false_val, fill_value=False)
-                trig_masks.add(
-                    "trig_ee",
-                    trig_masks.any("trig_ee_DoubleEG"),  # , "trig_ee_SingleElectron"),
-                    fill_value=False,
-                )
+                events = events.Define("trig_emu", "false")
+                events = events.Define("trig_mumu", "false")
+                events = events.Define(
+                    "trig_ee", "trig_ee_DoubleEG"
+                )# , "trig_ee_SingleElectron"),
             elif data_stream == "SingleElectron":
-                trig_masks.add(
-                    "trig_emu",
-                    trig_masks.require(
-                        trig_emu_MuonEG1=False,
-                        trig_emu_MuonEG2=False,
-                        trig_emu_SingleMuon=False,
-                        trig_emu_SingleElectron=True,
-                    ),
-                    fill_value=False,
+                events = events.Define(
+                    "trig_emu", 
+                    """trig_emu_MuonEG1 == false && trig_emu_MuonEG2 == false && 
+                    trig_emu_SingleMuon == false && trig_emu_SingleElectron == true)"""
                 )
-                trig_masks.add("trig_mumu", false_val, fill_value=False)
-                trig_masks.add(
-                    "trig_ee",
-                    trig_masks.require(
-                        trig_ee_DoubleEG=False, trig_ee_SingleElectron=True
-                    ),
-                    fill_value=False,
+                events = events.Define("trig_mumu", "false")
+                events = events.Define(
+                    "trig_ee", "(trig_ee_DoubleEG == false && trig_ee_SingleElectron == true)"
                 )
             elif data_stream == "MET":
                 raise NotImplementedError
