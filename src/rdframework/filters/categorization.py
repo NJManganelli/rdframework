@@ -135,6 +135,8 @@ def dilepton_trigger_selection(
     """
     Takes as input an events dataframe, collection names for isolated leptons, year, run period, data stream, and 
     WIP note: Could be written to take advantage of DefinePerSample, but would be a significant departure from coffea"""
+    old_column_names = set([str(col) for col in events.GetColumnNames()])
+    
     if not iso_muons.endswith("_"):
         iso_muons += "_"
     if not iso_electrons.endswith("_"):
@@ -235,7 +237,7 @@ def dilepton_trigger_selection(
                 "trig_emu", "(trig_emu_MuonEG1 || trig_emu_MuonEG2 || trig_emu_SingleMuon || trig_emu_EGamma)"
             )
             events = events.Define(
-                "trig_mumu", "(trig_mumu_DoubleMuon || trig_mumu_SingleMuon"
+                "trig_mumu", "(trig_mumu_DoubleMuon || trig_mumu_SingleMuon)"
             )
             events = events.Define(
                 "trig_ee", "(trig_ee_EGamma1 || trig_ee_EGamma2)"
@@ -440,4 +442,8 @@ def dilepton_trigger_selection(
             # for the SingleMuon datastream/backup trigger, so no double counting events in the MuonEG datastream+trigger
     elif era == "2016":
         raise NotImplementedError
-    return trig_masks
+        
+    new_column_names = list(set([str(col) for col in events.GetDefinedColumnNames()]) - old_column_names)
+    new_column_names.sort()
+    print(new_column_names)
+    return events
