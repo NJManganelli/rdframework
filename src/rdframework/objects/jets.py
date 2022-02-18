@@ -70,12 +70,12 @@ def btag_jets(
 
 def select_jets(
     events: Any,
-    input_collection: str
+    input_collection: str,
     output_collection: str,
     columns: list[str] | str | None,
     isolated_leptons: list[str] | None,
     clean_algo_or_dR: float | str,
-    # jet_min_pt: float,
+    jet_min_pt: float,
     jet_max_eta: float,
     jet_id: str,
     jet_pu_id: str | None = None,
@@ -85,7 +85,7 @@ def select_jets(
     pre_post_VFP: str | None = None,
     fix_inverted_pu_id_bits: bool = False,
     sort_column: str | None = "pt",
-    sort_reverse: bool = False,
+    sort_reverse: bool = True,
 ) -> Any:
     """pass in RDataFrame and list of names of isolated leptons to clean against. can use PFMatching or deltaR
 
@@ -122,7 +122,11 @@ def select_jets(
     else:
         raise ValueError(f"Unsupported jet_id value{jet_id}")
 
-    mask = f"auto jmask = abs({input_collection}eta) <= {jet_max_eta} && ({input_collection}jetId >= {jet_min_id})"
+    #This presumes _pt is a Vary'd column, all systematics accounted for!
+    mask = (
+        f"auto jmask = ({input_collection}pt > {jet_min_pt}) && abs({input_collection}eta) <= {jet_max_eta}"
+        f"&& ({input_collection}jetId >= {jet_min_id})"
+    )
 
     if jet_pu_id:
         if jet_pu_id.lower() in ["loose", "l"]:
@@ -134,7 +138,8 @@ def select_jets(
             # jet_mask[syst_name] = jet_mask[syst_name] & ( (getattr(jets, "pt_" + syst_variation) > 50.0) | jets.puId == 7)
         else:
             raise ValueError("Invalid Jet PU Id selected")
-        mask = mask + f" && (({input_collection}pt > 50.0) || {input_collection}puId >= {jet_min_pu_id})"
+        mask = mask + f" && (({input_collection}pt > 50.0) || ({input_collection}puId >= {jet_min_pu_id}))"
+    mask += ";\n"
 
     # allow for 0 to many isolated lepton collections to be passed in...
     if isolated_leptons:
@@ -143,30 +148,32 @@ def select_jets(
                 # FIXME: add this to logging with a check against DefinedColumnNames
                 # WARNING: PFMatching against a reduced collection will produce incorrect cross-cleaning
                 mask = mask + (
-                    f"""; for(int i=0; i < {lep_collection}_jetIdx.size(); ++i){{"
-                            jmask = jmask && ({input_collection}idx != {lep_collection}_jetIdx.at(i));}}"""
+                    f"for(int i=0; i < {lep_collection}_jetIdx.size(); ++i){{\n"
+                    f"  jmask = jmask && ({input_collection}idx != {lep_collection}_jetIdx.at(i));\n"
+                     "}\n"
                 )
             elif isinstance(clean_algo_or_dR, float): #DeltaR
                 mask = mask + (
-                    f"""; for(int i=0; i < {lep_collection}_jetIdx.size(); ++i){{"
-                            RVec_f dr;
-                            for(int j=0; j < jmask.size(); ++j){{
-                              dr.push_back(DeltaR({input_collection}eta.at(j), 
-                                                  {lep_collection}_eta.at(i),
-                                                  {input_collection}phi.at(j),
-                                                  {lep_collection}_phi.at(i)
-                                                 )
-                                          );
-                            }} // end loop over jmask
-                            jmask = jmask && dr >= {clean_algo_or_dR};
-                            dr.clear();
-                          }} //end loop over lep_collection""")
-    mask = mask + "; return jmask;"
+                    f"for(int i=0; i < {lep_collection}_jetIdx.size(); ++i){{\n"
+                     "  ROOT::VecOps::RVec<double> dr;\n"
+                     "  for(int j=0; j < jmask.size(); ++j){\n"
+                    f"    dr.push_back(ROOT::VecOps::DeltaR({input_collection}eta.at(j),\n"
+                    f"                                      {lep_collection}_eta.at(i),\n"
+                    f"                                      {input_collection}phi.at(j),\n"
+                    f"                                      {lep_collection}_phi.at(i)\n"
+                     "                       )\n"
+                     "                );\n"
+                     "  } // end loop over jmask\n"
+                     f"  jmask = jmask && dr >= {clean_algo_or_dR};\n"
+                     "  dr.clear();\n"
+                     "} //end loop over lep_collection\n"
+                )
+    mask = mask + "return jmask;"
     print(mask)
     avail_columns = [str(col) for col in events.GetColumnNames() if str(col).startswith(input_collection)]
     if not f"{input_collection}idx" in avail_columns:
         events = events.Define(f"{input_collection}idx", f"Combinations({avail_columns[0]}, 1).at(0);")
-    events = events.Define("{output_collection}jetmask", mask) 
+    events = events.Define(f"{output_collection}jetmask", mask) 
     if btagging_configuration is not None:
         btagger = str(btagging_configuration.get("btagger"))
         WP = str(btagging_configuration.get("WP"))
@@ -191,13 +198,13 @@ def select_jets(
     
     if sort_column:
         if sort_reverse:
-            events = events.Define("jettake", 
+            events = events.Define(f"{output_collection}jettake", 
                                    f"return Reverse(Argsort({input_collection}{sort_column}[{output_collection}jetmask]));")
         else:
             events = events.Define("jettake", f"return Argsort({input_collection}{sort_column}[{output_collection}jetmask]);")
     else:
-        events = events.Define(f"{output_collection}jettake", "return {input_collection}idx[{output_collection}jetmask];")
-    events = events.Define(f"n{output_collection[:-1]}", "return Sum({output_collection}jetmask);")
+        events = events.Define(f"{output_collection}jettake", f"return {input_collection}idx[{output_collection}jetmask];")
+    events = events.Define(f"n{output_collection[:-1]}", f"return Sum({output_collection}jetmask);")
     for scol in sel_columns:
         #This can be replaced by .Select(Jet_*, ...) when that feature is supported
         events = events.Define(output_collection + scol, 
