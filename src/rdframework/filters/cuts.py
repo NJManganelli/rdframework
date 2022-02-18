@@ -2,8 +2,6 @@ from __future__ import annotations
 
 from typing import Any
 
-import ROOT
-
 
 def PV_MET_filter(
     events: Any,
@@ -58,13 +56,13 @@ def PV_MET_filter(
             "legacy should be True or False, True if it's an (Ultra-)Legacy sample."
         )
 
-    PV_mask = f"return PV_ndof >= {min_NDoF} && abs(PV_z) < {max_abs_z} && sqrt(PV_x * PV_x + PV_y * PV_y) < {max_rho};"
-    PV_nicename = f"PV Filters: {PV_mask.replace("&&", "and").replace("PV_", "")}"
+    PV_mask = f"return (PV_ndof >= {min_NDoF}) && (abs(PV_z) < {max_abs_z}) && (sqrt(PV_x * PV_x + PV_y * PV_y) < {max_rho});"
+    PV_nicename = "PV Filters: " + PV_mask.replace("&&", "and").replace("PV_", "")
 
     flag_mask = "return "
     flag_nicename = "MET Filters: "
     for i, raw_mask in enumerate(flags):
-        if 0 < i < len(flags)-1:
+        if 0 < i < len(flags):
             flag_mask += " && "
         flag_mask += raw_mask
         flag_nicename += raw_mask[5:]
