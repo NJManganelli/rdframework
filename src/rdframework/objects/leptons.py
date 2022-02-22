@@ -32,7 +32,12 @@ def vidUnpackedWP(
             continue
         events = events.Define(
             f"{input_collection}{name}",
-            f"return ({input_collection}vidNestedWPBitmap >> {shift}) & 0b111;",
+            (
+                f"ROOT::VecOps::RVec<int> tmp; for(auto v : {input_collection}vidNestedWPBitmap){{\n"
+                f"  tmp.push_back((v >> {shift}) & 0b11);\n"
+                "} //end loop over vidNestedWPBitmap\n"
+                "return tmp;"
+            )
         )
     return events, ret_cols
 
@@ -117,7 +122,8 @@ def select_electrons_cutBased(
     ]
     if f"{input_collection}idx" not in avail_columns:
         events = events.Define(
-            f"{input_collection}idx", f"Combinations({avail_columns[0]}, 1).at(0);"
+            f"{input_collection}idx",
+            f"ROOT::VecOps::RVec<UInt_t> empty = {{}}; return {avail_columns[0]}.size() > 0 ? ROOT::VecOps::RVec<UInt_t>(Combinations({avail_columns[0]}, 1).at(0)) : empty;"
         )
     events = events.Define(f"{output_collection}elmask", mask)
 
@@ -240,7 +246,8 @@ def select_muons_cutBased(
     ]
     if f"{input_collection}idx" not in avail_columns:
         events = events.Define(
-            f"{input_collection}idx", f"Combinations({avail_columns[0]}, 1).at(0);"
+            f"{input_collection}idx",
+            f"ROOT::VecOps::RVec<UInt_t> empty = {{}}; return {avail_columns[0]}.size() > 0 ? ROOT::VecOps::RVec<UInt_t>(Combinations({avail_columns[0]}, 1).at(0)) : empty;"
         )
     events = events.Define(f"{output_collection}mumask", mask)
 

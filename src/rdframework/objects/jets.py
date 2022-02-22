@@ -177,7 +177,8 @@ def select_jets(
     ]
     if f"{input_collection}idx" not in avail_columns:
         events = events.Define(
-            f"{input_collection}idx", f"Combinations({avail_columns[0]}, 1).at(0);"
+            f"{input_collection}idx",
+            f"ROOT::VecOps::RVec<UInt_t> empty = {{}}; return {avail_columns[0]}.size() > 0 ? ROOT::VecOps::RVec<UInt_t>(Combinations({avail_columns[0]}, 1).at(0)) : empty;"
         )
     events = events.Define(f"{output_collection}jetmask", mask)
     if btagging_configuration is not None:

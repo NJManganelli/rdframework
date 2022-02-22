@@ -120,28 +120,28 @@ def lepton_channel_categorization(
     # Add the inverted iso channels of interest, SUBSET OF 'e' and 'mu' channels!
     # isolated-lepton_nonisolated-lepton_dilepton-charge format
     events = events.Define(
-        "channel_e_nie_OS", "(iso_1e0mu_noniso_1e0mu == true, sumc0 == true)"
+        "channel_e_nie_OS", "(iso_1e0mu_noniso_1e0mu == true && sumc0 == true)"
     )
     events = events.Define(
-        "channel_e_nie_SS", "(iso_1e0mu_noniso_1e0mu == true, sumc0 == false)"
+        "channel_e_nie_SS", "(iso_1e0mu_noniso_1e0mu == true && sumc0 == false)"
     )
     events = events.Define(
-        "channel_e_nim_OS", "(iso_1e0mu_noniso_0e1mu == true, sumc0 == true)"
+        "channel_e_nim_OS", "(iso_1e0mu_noniso_0e1mu == true && sumc0 == true)"
     )
     events = events.Define(
-        "channel_e_nim_SS", "(iso_1e0mu_noniso_0e1mu == true, sumc0 == false)"
+        "channel_e_nim_SS", "(iso_1e0mu_noniso_0e1mu == true && sumc0 == false)"
     )
     events = events.Define(
-        "channel_mu_nie_OS", "(iso_0e1mu_noniso_1e0mu == true, sumc0 == true)"
+        "channel_mu_nie_OS", "(iso_0e1mu_noniso_1e0mu == true && sumc0 == true)"
     )
     events = events.Define(
-        "channel_mu_nie_SS", "(iso_0e1mu_noniso_1e0mu == true, sumc0 == false)"
+        "channel_mu_nie_SS", "(iso_0e1mu_noniso_1e0mu == true && sumc0 == false)"
     )
     events = events.Define(
-        "channel_mu_nim_OS", "(iso_0e1mu_noniso_0e1mu == true, sumc0 == true)"
+        "channel_mu_nim_OS", "(iso_0e1mu_noniso_0e1mu == true && sumc0 == true)"
     )
     events = events.Define(
-        "channel_mu_nim_SS", "(iso_0e1mu_noniso_0e1mu == true, sumc0 == false)"
+        "channel_mu_nim_SS", "(iso_0e1mu_noniso_0e1mu == true && sumc0 == false)"
     )
 
     return events
