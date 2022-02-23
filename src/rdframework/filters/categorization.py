@@ -237,8 +237,8 @@ def dilepton_trigger_selection(
         events = events.Define(
             "trig_emu_MET",
             """subtrigger_MET
-                && ((first_iso_electron_pt > 25) && (first_iso_muon_pt > 15))
-                || ((first_iso_electron_pt > 15) && (first_iso_muon_pt > 25))""",
+                && (((first_iso_electron_pt > 25) && (first_iso_muon_pt > 15))
+                || ((first_iso_electron_pt > 15) && (first_iso_muon_pt > 25)))""",
         )
         events = events.Define(
             "trig_mumu_MET",
@@ -381,8 +381,8 @@ def dilepton_trigger_selection(
             "trig_emu_MET",
             (
                 """subtrigger_MET
-                && ((first_iso_electron_pt > 25) && (first_iso_muon_pt > 15))
-                || ((first_iso_electron_pt > 15) && (first_iso_muon_pt > 25))"""
+                && (((first_iso_electron_pt > 25) && (first_iso_muon_pt > 15))
+                || ((first_iso_electron_pt > 15) && (first_iso_muon_pt > 25)))"""
             ),
         )
         events = events.Define(
@@ -406,7 +406,7 @@ def dilepton_trigger_selection(
                 "trig_mumu", "(trig_mumu_DoubleMuon || trig_mumu_SingleMuon)"
             )
             events = events.Define(
-                "trig_ee", "(trig_ee_DoubleEG || trig_ee_SingleElectron"
+                "trig_ee", "(trig_ee_DoubleEG || trig_ee_SingleElectron)"
             )
             # TODO:
             # Insert dilepton events triggered on MET, NO overlap removal in data - use these for trigger scale factors
