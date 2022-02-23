@@ -89,16 +89,23 @@ def select_electrons_cutBased(
         e_id = electron_id
 
     # We apply the EGamma recommendations
-    mask = f"""auto emask = (
+    mask = f"""auto emask =
+    (
+        (
             (abs({input_collection}eta) < 1.4442)
             && (abs({input_collection}ip3d) < {max_ip3d_barrel})
             && (abs({input_collection}dz) < {max_dz_barrel})
-        ) || (
+        )
+        ||
+        (
             (abs({input_collection}eta) > 1.5660)
             && (abs({input_collection}eta) <= {max_eta})
             && (abs({input_collection}ip3d) < {max_ip3d_endcap})
             && (abs({input_collection}dz) < {max_dz_endcap})
-        ) && ({input_collection}pt >= {min_pt})"""
+        )
+    )
+    &&
+    ({input_collection}pt >= {min_pt})"""
     if isinstance(invert_cuts, list) and len(invert_cuts) > 0:
         # add unpacked columns to dataset
         events, vid_cuts = vidUnpackedWP(
