@@ -34,7 +34,7 @@ def vidUnpackedWP(
             f"{input_collection}{name}",
             (
                 f"ROOT::VecOps::RVec<int> tmp; for(auto v : {input_collection}vidNestedWPBitmap){{\n"
-                f"  tmp.push_back((v >> {shift}) & 0b11);\n"
+                f"  tmp.push_back((v >> {shift}) & 0b111);\n"
                 "} //end loop over vidNestedWPBitmap\n"
                 "return tmp;"
             ),
@@ -107,12 +107,13 @@ def select_electrons_cutBased(
     &&
     ({input_collection}pt >= {min_pt})"""
     if isinstance(invert_cuts, list) and len(invert_cuts) > 0:
+        cln_invert_cuts = [cut.split("_")[-1] for cut in invert_cuts]
         # add unpacked columns to dataset
         events, vid_cuts = vidUnpackedWP(
             events, return_columns=True, input_collection=input_collection
         )
         for name in vid_cuts:
-            if name not in invert_cuts:
+            if name not in cln_invert_cuts:
                 # Need the cut to have passed at the minimum level
                 mask += f"\n && ({input_collection}{name} >= {e_id})"
             else:
