@@ -1,4 +1,6 @@
-from typing import List, Optional, Protocol, Union
+from __future__ import annotations
+
+from typing import Protocol
 
 
 class SimpleDatasetProtocol(Protocol):
@@ -17,13 +19,13 @@ class SimpleDatasetProtocol(Protocol):
     def latex_name(self) -> str:
         raise NotImplementedError()
 
-    def files(self) -> List[str]:
+    def files(self) -> list[str]:
         raise NotImplementedError()
 
     def is_skimmed(self) -> bool:
         raise NotImplementedError()
 
-    def skimming_description(self) -> Optional[str]:
+    def skimming_description(self) -> str | None:
         raise NotImplementedError()
 
     # friendfiles1 = List[str]
@@ -38,9 +40,9 @@ class SimpleDataset(SimpleDatasetProtocol):
         is_mc: bool,
         effective_luminosity: float,
         latex_name: str,
-        files: Union[List[str], str],
+        files: list[str] | str,
         is_skimmed: bool,
-        skimming_description: Optional[str],
+        skimming_description: str | None,
     ):
         # The name for the dataset, ideally unique within a given datagroup being analyzed
         self._name = name
@@ -73,11 +75,11 @@ class SimpleDataset(SimpleDatasetProtocol):
     def latex_name(self) -> str:
         return self._latex_name
 
-    def files(self) -> List[str]:
+    def files(self) -> list[str]:
         return self._files
 
     def is_skimmed(self) -> bool:
         return self._is_skimmed
 
-    def skimming_description(self) -> Optional[str]:
+    def skimming_description(self) -> str | None:
         return self._skimming_description

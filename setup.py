@@ -3,6 +3,8 @@
 #
 # Distributed under the 3-clause BSD license, see accompanying file LICENSE
 # or https://github.com/NJManganelli/rdframework for details.
+from __future__ import annotations
+
 import site
 
 from setuptools import setup
