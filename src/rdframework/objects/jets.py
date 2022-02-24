@@ -85,7 +85,7 @@ def select_jets(
     pre_post_VFP: str | None = None,
     fix_inverted_pu_id_bits: bool = False,
     sort_column: str | None = "pt",
-    sort_reverse: bool = True,
+    sort_ascending: bool = False,
 ) -> Any:
     """pass in RDataFrame and list of names of isolated leptons to clean against. can use PFMatching or deltaR
 
@@ -210,7 +210,7 @@ def select_jets(
         ]
 
     if sort_column:
-        if sort_reverse:
+        if not sort_ascending:
             events = events.Define(
                 f"{output_collection}jettake",
                 f"return Reverse(Argsort({input_collection}{sort_column}[{output_collection}jetmask]));",

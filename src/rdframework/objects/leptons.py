@@ -66,7 +66,7 @@ def select_electrons_cutBased(
     max_dz_endcap: float = 0.2,
     invert_cuts: list[str] | None = None,
     sort_column: str | None = "pt",
-    sort_reverse: bool = True,
+    sort_ascending: bool = False,
 ) -> Any:
     if not input_collection.endswith("_"):
         input_collection += "_"
@@ -152,7 +152,7 @@ def select_electrons_cutBased(
     if sort_column:
         # Build a take vector that must be applied to the SLICED variables
         # e.g. Take(Electron_eta[ele_mask], sort_indices_for_slice)
-        if sort_reverse:
+        if not sort_ascending:
             events = events.Define(
                 f"{output_collection}eltake",
                 f"return Reverse(Argsort({input_collection}{sort_column}[{output_collection}elmask]));",
@@ -193,7 +193,7 @@ def select_muons_cutBased(
     max_dz: float = 0.2,
     invert_iso: bool = False,
     sort_column: str | None = "pt",
-    sort_reverse: bool = True,
+    sort_ascending: bool = False,
 ) -> Any:
     if not input_collection.endswith("_"):
         input_collection += "_"
@@ -276,7 +276,7 @@ def select_muons_cutBased(
     if sort_column:
         # Build a take vector that must be applied to the SLICED variables
         # e.g. Take(Muon_eta[mu_mask], sort_indices_for_slice)
-        if sort_reverse:
+        if not sort_ascending:
             events = events.Define(
                 f"{output_collection}mutake",
                 f"return Reverse(Argsort({input_collection}{sort_column}[{output_collection}mumask]));",
